@@ -32,7 +32,7 @@ singing-service/
 │   │   ├── rhythm_eval.py       # stub (diferido a Sprint 1)
 │   │   └── align.py             # FastDTW (reservado para Sprint 1; no en la ruta)
 │   └── mock/data.py             # fixture con valores de Figma (no expuesto por API)
-├── tests/                       # 70 tests de servicio
+├── tests/                       # 82 tests de servicio (+1 de integración)
 ├── integration/                 # simulador Celery, matriz de errores, fixtures, verify
 └── docs/                        # contrato, arquitectura, backlog, troubleshooting
 ```

@@ -7,9 +7,9 @@
 ## Versión
 
 - **Tag:** `v0.2.2` (annotated; tag object
-  `2bfae4ad0a4ff174e7cba49e1e4736a4bc1af6e0`).
-- **Commit:** `42eda5af3fb76448ede84dc886936091d7955217` (release commit).
-- **Fecha:** 2026-11-14T16:14:26-04:00.
+  `fdad4cc5dc5c9dd2576e375e2bfdbe431864e71c`).
+- **Commit:** `1b9271bc22db876416772893afc48ca753600a05` (release commit).
+- **Fecha:** 2026-11-14T16:20:37-04:00.
 - **Fingerprint (respaldo):**
   `821a796d9f6e27e49b1a22c35319ba0fe227600ed90c5defb4b05bece31e92ae`
   (árbol `singing-service/`, excluye `.venv`, caches,
@@ -27,12 +27,12 @@ bash integration/verify_handoff.sh   # debe dar HANDOFF OK
 ```
 
 Verificación de integridad: `git rev-parse v0.2.2^{commit}` debe devolver
-`42eda5af3fb76448ede84dc886936091d7955217`. `git rev-parse v0.2.2` devuelve el
-objeto anotado `2bfae4ad0a4ff174e7cba49e1e4736a4bc1af6e0`.
+`1b9271bc22db876416772893afc48ca753600a05`. `git rev-parse v0.2.2` devuelve el
+objeto anotado `fdad4cc5dc5c9dd2576e375e2bfdbe431864e71c`.
 
 ## Calidad
 
-- **Tests:** 76 passed (93 % cobertura).
+- **Tests:** 83 passed (97 % cobertura).
 - **Linter:** `ruff check .` → All checks passed.
 - **Verificación:** `bash singing-service/integration/verify_handoff.sh` → **4/4 HANDOFF OK**.
 - **Casos límite:** 15/15 sin crashes (auditoría v0.2.0).
@@ -99,8 +99,8 @@ primer intento end-to-end.
 
 | # | Comando | Resultado |
 |---|---|---|
-| 1 | `pytest -v` | 76 passed, 93 % |
-| 2 | `pytest --cov=app.core --cov=app.main --cov-report=term-missing` | 76 passed, 93 % |
+| 1 | `pytest -v` | 83 passed, 97 % |
+| 2 | `pytest --cov=app.core --cov=app.main --cov-report=term-missing` | 83 passed, 97 % |
 | 3 | `ruff check .` | All checks passed |
 | 4 | `bash singing-service/integration/verify_handoff.sh` | 4/4 HANDOFF OK |
 | 5 | `grep files={'file'` | 0 referencias |

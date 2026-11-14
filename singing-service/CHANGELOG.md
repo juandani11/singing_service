@@ -13,6 +13,7 @@ versionado [SemVer](https://semver.org/lang/es/).
 - Código de error `UNHANDLED_ERROR` (500) con `logging.exception` y `request_id`.
 - `/health` incluye `request_id`.
 - 5 tests nuevos (`test_request_id.py`).
+- 7 tests nuevos de handlers/cobertura (`test_exception_handlers.py`).
 - Nota V-01 en contrato §5 (Content-Length inválido rechazado por uvicorn).
 - `UNHANDLED_ERROR` en tabla de errores del contrato.
 
@@ -23,7 +24,7 @@ versionado [SemVer](https://semver.org/lang/es/).
 
 ### Verificación
 
-- 76 tests, 93% cobertura, ruff OK.
+- 83 tests, 97% cobertura, ruff OK.
 - `verify_handoff.sh` 4/4 HANDOFF OK.
 - Sin repo git: fingerprint de referencia `v0.2.2` =
   `821a796d9f6e27e49b1a22c35319ba0fe227600ed90c5defb4b05bece31e92ae` (árbol
