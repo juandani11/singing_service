@@ -1,0 +1,252 @@
+{
+  "info": {
+    "_postman_id": "5f1a8c4e-0000-4000-8000-syncdance0001",
+    "name": "singing-service — SyncDance AI",
+    "description": "Contrato OpenAPI v1 del microservicio de voz. Swagger: http://localhost:5000/docs. En docker-compose del monorepo, la URL interna es http://singing-service:5000.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000"
+    },
+    {
+      "key": "analysis_id",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "health"
+          ]
+        }
+      }
+    },
+    {
+      "name": "OpenAPI (contrato vivo)",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{base_url}}/openapi.json",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "openapi.json"
+          ]
+        }
+      }
+    },
+    {
+      "name": "POST /api/v1/analyze (mock)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('202 Accepted', () => pm.response.to.have.status(202));",
+              "const body = pm.response.json();",
+              "pm.test('tiene analysis_id', () => pm.expect(body.analysis_id).to.be.ok);",
+              "pm.collectionVariables.set('analysis_id', body.analysis_id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": null,
+              "description": "Audio/video del intento (.m4a/.mp3/.wav/.mp4/.mov)"
+            },
+            {
+              "key": "reference_file",
+              "type": "file",
+              "src": null,
+              "description": "Audio de referencia de la rutina"
+            },
+            {
+              "key": "attempt_id",
+              "value": "attempt-demo-1",
+              "type": "text"
+            },
+            {
+              "key": "routine_id",
+              "value": "routine-demo-1",
+              "type": "text"
+            },
+            {
+              "key": "mode",
+              "value": "mock",
+              "type": "text",
+              "description": "mock | real (real: FFmpeg + pyin + FastDTW + scoring, Sprint 4)"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/analyze",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "analyze"
+          ]
+        },
+        "description": "Adjunta cualquier archivo de prueba (el mock no valida contenido; la validación real llega en Sprint 2). Guarda analysis_id en la variable de colección."
+      }
+    },
+    {
+      "name": "GET /api/v1/analyze/{analysis_id}",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('score vocal presente', () => pm.expect(body.scores.vocal).to.be.a('number'));",
+              "pm.test('no_voice != out_of_tune', () => {",
+              "  const tipos = body.segments.map(s => s.type);",
+              "  pm.expect(tipos).to.include('no_voice');",
+              "  pm.expect(tipos).to.include('out_of_tune');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{base_url}}/api/v1/analyze/{{analysis_id}}",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "analyze",
+            "{{analysis_id}}"
+          ]
+        },
+        "description": "Ejecutar antes el POST. Devuelve el resultado completo (pitch, segments, scores, feedback, timings)."
+      }
+    },
+    {
+      "name": "POST /api/v1/analyze (real)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('202 Accepted', () => pm.response.to.have.status(202));",
+              "const body = pm.response.json();",
+              "pm.test('tiene analysis_id', () => pm.expect(body.analysis_id).to.be.ok);",
+              "pm.collectionVariables.set('analysis_id', body.analysis_id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": null,
+              "description": "Audio del intento (§12.1: casi afinado / desviación 80 cents / pausa)"
+            },
+            {
+              "key": "reference_file",
+              "type": "file",
+              "src": null,
+              "description": "Audio de referencia de la rutina"
+            },
+            {
+              "key": "attempt_id",
+              "value": "attempt-demo-real",
+              "type": "text"
+            },
+            {
+              "key": "routine_id",
+              "value": "routine-demo-1",
+              "type": "text"
+            },
+            {
+              "key": "mode",
+              "value": "real",
+              "type": "text",
+              "description": "FFmpeg + pyin + FastDTW + scoring (Sprints 2-4)"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/api/v1/analyze",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "analyze"
+          ]
+        },
+        "description": "Pipeline completo. Ver Docs/integracion-core.md (reintentos, SERVICE_BUSY 429, errores tipados). Reenviar con el mismo attempt_id devuelve el mismo analysis_id (idempotencia)."
+      }
+    },
+    {
+      "name": "GET /api/v1/analyze (404 no encontrado)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('404 ANALYSIS_NOT_FOUND', () => {",
+              "  pm.response.to.have.status(404);",
+              "  pm.expect(pm.response.json().detail.code).to.eql('ANALYSIS_NOT_FOUND');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/analyze/id-inexistente",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "analyze",
+            "id-inexistente"
+          ]
+        },
+        "description": "Resultado inexistente o expirado (TTL 1 h): el Core relanza POST con el mismo attempt_id."
+      }
+    }
+  ]
+}

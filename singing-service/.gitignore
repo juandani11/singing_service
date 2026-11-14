@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Tests / linters
+.pytest_cache/
+.ruff_cache/
+.coverage
+
+# Entorno
+.env
+*.log
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Integration fixtures (generadas, no se commitean)
+integration/fixtures/

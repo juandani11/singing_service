@@ -1,0 +1,18 @@
+# Compose LOCAL para desarrollar el microservicio de forma aislada (Sprint 0).
+# Cuando el monorepo del equipo esté disponible, este servicio se traslada al
+# docker-compose.yml de la raíz (red interna, sin publicar el puerto fuera) — plan §4.
+services:
+  singing-service:
+    build: .
+    container_name: singing-service
+    ports:
+      - "5000:5000"
+    environment:
+      ANALYSIS_TTL_SECONDS: "3600"
+      HOP_LENGTH: "512"
+      CENT_THRESHOLD: "50"
+      MAX_FILE_MB: "50"
+      MAX_DURATION_SEC: "600"
+      MAX_CONCURRENT_ANALYSES: "2"
+      BUSY_TIMEOUT_SEC: "30"
+    restart: unless-stopped

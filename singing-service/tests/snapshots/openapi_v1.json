@@ -1,0 +1,816 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SyncDance AI — singing-service",
+    "description": "Microservicio **stateless** de análisis de canto de SyncDance AI. Recibe un audio (`absolute`) o un audio + referencia (`comparative`) y devuelve pitch, métricas, segmentos y feedback. Sin autenticación: solo red interna de Docker (decisión del equipo). Contrato detallado para el Core: `docs/celery-contract.md`.",
+    "contact": {
+      "name": "SyncDance AI — Equipo 7"
+    },
+    "license": {
+      "name": "Uso interno — SyncDance AI"
+    },
+    "version": "0.2.0"
+  },
+  "paths": {
+    "/api/v1/analyze": {
+      "post": {
+        "tags": [
+          "Análisis"
+        ],
+        "summary": "Analizar audio de canto",
+        "description": "Analiza un audio de canto y devuelve métricas de pitch, segmentos y feedback.\n\n**Modos:**\n- `absolute` (default): análisis sin referencia; `pitch_accuracy` y\n  `average_cent_deviation` son `null`.\n- `comparative`: compara contra `reference_audio` (o `reference_notes`); requiere\n  referencia.\n\n**Formatos:** wav, m4a, mp3, aac, ogg. **Límites:** 50 MB, 600 s.\n\n**Futuro (Sprint 1):** `include_contour` y `tempo_bpm`; v0.2.0 los ignora.\n\n**Respuesta:** `202 Accepted` (no 200) con `{analysis_id, status, mode}`; el\nresultado completo se consulta en `GET /api/v1/analyze/{analysis_id}`.\n\n**Ejemplo curl:**\n```bash\ncurl -X POST http://localhost:5000/api/v1/analyze \\\n  -F \"audio=@test.wav\" \\\n  -F \"attempt_id=attempt-123\" \\\n  -F \"routine_id=routine-9\" \\\n  -F \"mode=absolute\"\n```",
+        "operationId": "analyze_api_v1_analyze_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_analyze_api_v1_analyze_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Análisis aceptado; consultar el GET del resultado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptedResponse"
+                },
+                "example": {
+                  "analysis_id": "8386a02e0cc8495a8d63523b3fc86b19",
+                  "status": "completed",
+                  "mode": "absolute"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Audio o referencia inválidos",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": {
+                    "code": "INVALID_AUDIO",
+                    "message": "No se pudo decodificar el audio",
+                    "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e"
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Excede los límites de tamaño o duración",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": {
+                    "code": "AUDIO_TOO_LARGE",
+                    "message": "Archivo mayor al límite de 50 MB",
+                    "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`mode` inválido o campo obligatorio faltante",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": {
+                    "code": "INVALID_MODE",
+                    "message": "mode debe ser 'absolute' o 'comparative'",
+                    "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Servicio saturado (semáforo de análisis)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": {
+                    "code": "SERVICE_BUSY",
+                    "message": "Servicio saturado de análisis; reintenta en unos segundos",
+                    "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Falta FFmpeg en el entorno",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": {
+                    "code": "FFMPEG_NOT_FOUND",
+                    "message": "FFmpeg no está disponible en el entorno",
+                    "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No aplica a este endpoint: el 503 lo devuelve `/health` cuando el servicio está degradado."
+          }
+        }
+      }
+    },
+    "/api/v1/analyze/{analysis_id}": {
+      "get": {
+        "tags": [
+          "Análisis"
+        ],
+        "summary": "Obtener el resultado de un análisis",
+        "description": "Devuelve el `AnalysisResult` completo de un análisis previo.\n\nIncluye `pitch` (curvas F0), `segments`, `scores`, `metrics`, `feedback` y\n`timings`. En `mode=absolute`, `pitch.reference`, `pitch_accuracy`,\n`average_cent_deviation` y `rhythm_accuracy` son `null`.\n\nEl resultado vive en memoria con TTL de 1 h; si expiró, relanzar el `POST` con el\nmismo `attempt_id`.",
+        "operationId": "get_analysis_api_v1_analyze__analysis_id__get",
+        "parameters": [
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Analysis Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resultado del análisis",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisResult"
+                },
+                "example": {
+                  "analysis_id": "8386a02e0cc8495a8d63523b3fc86b19",
+                  "attempt_id": "attempt-123",
+                  "routine_id": "routine-9",
+                  "status": "completed",
+                  "mode": "absolute",
+                  "algorithm_version": "0.5.0-hybrid-modes",
+                  "duration_sec": 5.0,
+                  "pitch": {
+                    "student": [
+                      {
+                        "t": 0.0,
+                        "f0": 439.8,
+                        "voiced": true
+                      }
+                    ],
+                    "hop_ms": 32
+                  },
+                  "segments": [],
+                  "scores": {
+                    "vocal": 99,
+                    "afinacion": 100,
+                    "estabilidad": 100,
+                    "control_volumen": 97,
+                    "silence_pct": 0
+                  },
+                  "metrics": {
+                    "pitch_stability_cents": 0.0,
+                    "mean_pitch_hz": 439.8,
+                    "voiced_ratio": 1.0
+                  },
+                  "feedback": [],
+                  "timings": {
+                    "preprocess_ms": 762,
+                    "pitch_ms": 289,
+                    "dtw_ms": 0,
+                    "scoring_ms": 8
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Análisis inexistente o expirado",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": {
+                    "code": "ANALYSIS_NOT_FOUND",
+                    "message": "Análisis inexistente o expirado; relanza el POST /analyze",
+                    "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Parámetro inválido"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Salud"
+        ],
+        "summary": "Health check con dependencias",
+        "description": "Estado del servicio y de sus dependencias (ffmpeg, librosa, modelos y disco). Devuelve **503 `degraded`** si falta FFmpeg o librosa no carga.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Servicio sano",
+            "content": {
+              "application/json": {
+                "schema": {},
+                "example": {
+                  "status": "ok",
+                  "service": "singing-service",
+                  "version": "0.2.0",
+                  "checks": {
+                    "ffmpeg": {
+                      "ok": true,
+                      "version": "7.1.5"
+                    },
+                    "librosa": {
+                      "ok": true,
+                      "version": "1.0.1"
+                    },
+                    "models_loaded": {
+                      "ok": true
+                    },
+                    "disk_space_mb": 952675
+                  },
+                  "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e",
+                  "timestamp": "2026-11-14T19:07:53.272048+00:00"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Servicio degradado (falta FFmpeg o librosa no carga)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "status": "degraded",
+                  "service": "singing-service",
+                  "version": "0.2.0",
+                  "checks": {
+                    "ffmpeg": {
+                      "ok": false
+                    },
+                    "librosa": {
+                      "ok": true,
+                      "version": "1.0.1"
+                    },
+                    "models_loaded": {
+                      "ok": true
+                    },
+                    "disk_space_mb": 952675
+                  },
+                  "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e",
+                  "timestamp": "2026-11-14T19:12:15.713759+00:00"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AcceptedResponse": {
+        "properties": {
+          "analysis_id": {
+            "type": "string",
+            "title": "Analysis Id",
+            "description": "Identificador del análisis encolado"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "completed",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "absolute",
+              "comparative"
+            ],
+            "title": "Mode",
+            "description": "Modo de análisis aplicado"
+          }
+        },
+        "type": "object",
+        "required": [
+          "analysis_id",
+          "status",
+          "mode"
+        ],
+        "title": "AcceptedResponse",
+        "description": "Respuesta 202 del POST /api/v1/analyze."
+      },
+      "AnalysisResult": {
+        "properties": {
+          "analysis_id": {
+            "type": "string",
+            "title": "Analysis Id"
+          },
+          "attempt_id": {
+            "type": "string",
+            "title": "Attempt Id"
+          },
+          "routine_id": {
+            "type": "string",
+            "title": "Routine Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "completed",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "absolute",
+              "comparative"
+            ],
+            "title": "Mode"
+          },
+          "algorithm_version": {
+            "type": "string",
+            "title": "Algorithm Version",
+            "description": "Versión del algoritmo que produjo el resultado"
+          },
+          "duration_sec": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Duration Sec"
+          },
+          "pitch": {
+            "$ref": "#/components/schemas/PitchCurves"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/Segment"
+            },
+            "type": "array",
+            "title": "Segments"
+          },
+          "scores": {
+            "$ref": "#/components/schemas/Scores"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/Metrics"
+          },
+          "feedback": {
+            "items": {
+              "$ref": "#/components/schemas/FeedbackItem"
+            },
+            "type": "array",
+            "title": "Feedback"
+          },
+          "timings": {
+            "$ref": "#/components/schemas/Timings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "analysis_id",
+          "attempt_id",
+          "routine_id",
+          "status",
+          "mode",
+          "algorithm_version",
+          "duration_sec",
+          "pitch",
+          "segments",
+          "scores",
+          "metrics",
+          "feedback",
+          "timings"
+        ],
+        "title": "AnalysisResult",
+        "description": "Resultado completo que el Core persiste en PostgreSQL (fuente de verdad)."
+      },
+      "Body_analyze_api_v1_analyze_post": {
+        "properties": {
+          "audio": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Audio",
+            "description": "Audio o video del intento"
+          },
+          "reference_audio": {
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Audio",
+            "description": "Audio de referencia (requerido en comparative)"
+          },
+          "reference_notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Notes",
+            "description": "Notas JSON de referencia: [{\"t\":0.0,\"f0\":440.0}, ...]"
+          },
+          "attempt_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Attempt Id",
+            "description": "Intento en el Core (idempotencia)"
+          },
+          "routine_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Routine Id",
+            "description": "Rutina a la que pertenece el intento"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "description": "absolute (sin referencia) | comparative (requiere referencia)",
+            "default": "absolute"
+          }
+        },
+        "type": "object",
+        "required": [
+          "audio",
+          "attempt_id",
+          "routine_id"
+        ],
+        "title": "Body_analyze_api_v1_analyze_post"
+      },
+      "FeedbackItem": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "description": "Código estable para i18n/trazabilidad"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Mensaje en español (HU-46/RF-39)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "FeedbackItem"
+      },
+      "Metrics": {
+        "properties": {
+          "pitch_stability_cents": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pitch Stability Cents"
+          },
+          "mean_pitch_hz": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Pitch Hz"
+          },
+          "voiced_ratio": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voiced Ratio"
+          },
+          "pitch_accuracy": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pitch Accuracy"
+          },
+          "rhythm_accuracy": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rhythm Accuracy"
+          },
+          "average_cent_deviation": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Cent Deviation"
+          }
+        },
+        "type": "object",
+        "title": "Metrics",
+        "description": "Métricas del contrato híbrido (Sprint 0 — cierre de gaps).\n\n- `pitch_stability_cents`, `mean_pitch_hz`, `voiced_ratio`: en ambos modos.\n- `pitch_accuracy`, `average_cent_deviation`: sólo `mode=comparative` (null en absolute).\n- `rhythm_accuracy`: null siempre; ritmo diferido a Sprint 1 (decisión O4-B)."
+      },
+      "PitchCurves": {
+        "properties": {
+          "student": {
+            "items": {
+              "$ref": "#/components/schemas/PitchPoint"
+            },
+            "type": "array",
+            "title": "Student",
+            "description": "Curva F0 del alumno"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PitchPoint"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference",
+            "description": "Curva F0 de la referencia; null en mode=absolute"
+          },
+          "hop_ms": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Hop Ms",
+            "description": "Distancia entre frames en milisegundos"
+          }
+        },
+        "type": "object",
+        "required": [
+          "student",
+          "hop_ms"
+        ],
+        "title": "PitchCurves"
+      },
+      "PitchPoint": {
+        "properties": {
+          "t": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "T",
+            "description": "Segundos desde el inicio del audio"
+          },
+          "f0": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "F0",
+            "description": "Frecuencia fundamental en Hz; null si no hay voz"
+          },
+          "voiced": {
+            "type": "boolean",
+            "title": "Voiced",
+            "description": "True si hay voz detectada en este frame"
+          }
+        },
+        "type": "object",
+        "required": [
+          "t",
+          "voiced"
+        ],
+        "title": "PitchPoint",
+        "description": "Un frame de la curva F0."
+      },
+      "Scores": {
+        "properties": {
+          "vocal": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Vocal"
+          },
+          "afinacion": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Afinacion"
+          },
+          "estabilidad": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Estabilidad"
+          },
+          "control_volumen": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Control Volumen"
+          },
+          "silence_pct": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Silence Pct",
+            "description": "% del tiempo sin voz"
+          }
+        },
+        "type": "object",
+        "required": [
+          "vocal",
+          "afinacion",
+          "estabilidad",
+          "control_volumen",
+          "silence_pct"
+        ],
+        "title": "Scores",
+        "description": "Puntajes 0-100 (score vocal documentado en docs/scoring.md, Sprint 4)."
+      },
+      "Segment": {
+        "properties": {
+          "start": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Start",
+            "description": "Inicio en segundos"
+          },
+          "end": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "End",
+            "description": "Fin en segundos"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "out_of_tune",
+              "no_voice"
+            ],
+            "title": "Type",
+            "description": "out_of_tune = desafinado; no_voice = ausencia de voz (HU-46 las diferencia)"
+          },
+          "expected_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Note",
+            "description": "Nota esperada (out_of_tune)"
+          },
+          "sung_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sung Note",
+            "description": "Nota cantada (out_of_tune)"
+          },
+          "delta_cents": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta Cents",
+            "description": "Desviación en cents (out_of_tune)"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "info",
+              "medium",
+              "high"
+            ],
+            "title": "Severity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "type",
+          "severity"
+        ],
+        "title": "Segment",
+        "description": "Segmento vocal con mayor desviación (HU-45/HU-46)."
+      },
+      "Timings": {
+        "properties": {
+          "preprocess_ms": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Preprocess Ms"
+          },
+          "pitch_ms": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Pitch Ms"
+          },
+          "dtw_ms": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Dtw Ms",
+            "description": "Comparación temporal (simple en v1; FastDTW en S1)"
+          },
+          "scoring_ms": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Scoring Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "preprocess_ms",
+          "pitch_ms",
+          "dtw_ms",
+          "scoring_ms"
+        ],
+        "title": "Timings",
+        "description": "Trazabilidad HU-20/RF-25 y métrica §15.1 (tiempo de procesamiento)."
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Análisis",
+      "description": "Análisis de canto: pitch, métricas, segmentos y feedback."
+    },
+    {
+      "name": "Salud",
+      "description": "Estado del servicio y de sus dependencias (ffmpeg, librosa, disco)."
+    },
+    {
+      "name": "Sistema",
+      "description": "Metadatos y documentación del servicio."
+    }
+  ]
+}

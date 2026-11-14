@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+
+# Entornos
+.env
+.env.local
+*.log
+
+# Fixtures generadas (no commitear audios)
+singing-service/integration/fixtures/
+singing-service/integration/fixtures/**/*.wav
+singing-service/integration/fixtures/**/*.m4a
+singing-service/integration/fixtures/**/*.mp3
+singing-service/integration/fixtures/**/*.aac
+singing-service/integration/fixtures/**/*.ogg
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Docker
+*.pid
+
+# Secretos
+*.pem
+*.key

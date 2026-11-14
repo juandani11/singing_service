@@ -1,0 +1,17 @@
+[tool.pytest.ini_options]
+testpaths = ["tests", "integration"]
+addopts = "-q --cov=app.core --cov=app.main --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["app"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Patrón idiomático de FastAPI para parámetros de formulario/archivo
+extend-immutable-calls = ["fastapi.File", "fastapi.Form"]
