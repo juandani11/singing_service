@@ -15,11 +15,13 @@ from __future__ import annotations
 
 import http.server
 import os
+import socket
 import sys
 import tempfile
 import threading
 import wave
 from pathlib import Path
+from urllib.parse import urlparse
 
 import numpy as np
 import requests
@@ -185,6 +187,36 @@ def _check_5xx_without_json() -> tuple[str, str | None]:
         thread.join(timeout=2)
 
 
+def _check_v01_service_alive(analyze_url: str) -> tuple[bytes, int]:
+    """Content-Length falso por socket crudo; verifica que el servicio sigue vivo."""
+    parsed = urlparse(analyze_url)
+    host = parsed.hostname or "127.0.0.1"
+    port = parsed.port or 80
+    payload = (
+        b'--b\r\nContent-Disposition: form-data; name="mode"\r\n\r\n'
+        b"absolute\r\n--b--\r\n"
+    )
+    request = (
+        f"POST {parsed.path} HTTP/1.1\r\n"
+        f"Host: {parsed.netloc}\r\n"
+        "Content-Type: multipart/form-data; boundary=b\r\n"
+        "Content-Length: 999999\r\n"
+        "Connection: close\r\n\r\n"
+    ).encode() + payload
+    sock = socket.create_connection((host, port), timeout=5)
+    try:
+        sock.sendall(request)
+        sock.shutdown(socket.SHUT_WR)
+        try:
+            data = sock.recv(4096)
+        except TimeoutError:
+            data = b""
+    finally:
+        sock.close()
+    health = requests.get(health_url(analyze_url), timeout=10)
+    return data, health.status_code
+
+
 def main() -> int:
     analyze_url = normalize_analyze_url(
         os.environ.get("SINGING_SERVICE_URL", DEFAULT_URL)
@@ -295,6 +327,31 @@ def main() -> int:
             print(f"[PASS] 5xx_sin_json: action={action} reason={reason}")
         else:
             print(f"[FAIL] 5xx_sin_json: action={action} reason={reason}")
+
+    # V-01: Content-Length inválido -> uvicorn rechaza; el servicio debe seguir vivo
+    results.total += 1
+    try:
+        data, health_status = _check_v01_service_alive(analyze_url)
+    except Exception as exc:  # noqa: BLE001 (se reporta como FAIL)
+        print(
+            f"[FAIL] v01_content_length_service_alive: "
+            f"{type(exc).__name__}: {exc}"
+        )
+    else:
+        first_line = data.split(b"\r\n", 1)[0] if data else b""
+        rejected = (not data) or (b"400" in first_line)
+        alive = health_status == 200
+        if rejected and alive:
+            results.passed += 1
+            print(
+                "[PASS] v01_content_length_service_alive: "
+                f"rejected={data[:40]!r} health={health_status}"
+            )
+        else:
+            print(
+                "[FAIL] v01_content_length_service_alive: "
+                f"rejected={data[:80]!r} health={health_status}"
+            )
 
     print(f"\nRESUMEN: {results.passed}/{results.total} checks OK")
     return 0 if results.passed == results.total else 1

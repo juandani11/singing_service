@@ -1,9 +1,10 @@
 ﻿# HANDOFF_CORE — Integración `singing-service` ↔ Core API (Celery)
 
 > **Versión:** v0.2.2
-> **Fecha de cierre:** 2026-11-14
-> **Tag git:** sin tag; fingerprint de referencia: `821a796d9f6e27e49b1a22c35319ba0fe227600ed90c5defb4b05bece31e92ae`
-> **Commit SHA:** sin commit (no repo git); fingerprint: `821a796d9f6e27e49b1a22c35319ba0fe227600ed90c5defb4b05bece31e92ae`
+> **Tag git:** `v0.2.2` (annotated; tag object `2bfae4ad0a4ff174e7cba49e1e4736a4bc1af6e0`)
+> **Commit SHA:** `42eda5af3fb76448ede84dc886936091d7955217`
+> **Fecha:** 2026-11-14T16:14:26-04:00
+> **Fingerprint (respaldo):** `821a796d9f6e27e49b1a22c35319ba0fe227600ed90c5defb4b05bece31e92ae`
 > **Estado:** ✅ LISTO PARA INTEGRACIÓN CON CORE
 > **Tests:** 76 passed, 93% cobertura, ruff OK
 > **Verificación:** `bash singing-service/integration/verify_handoff.sh` → 4/4 HANDOFF OK

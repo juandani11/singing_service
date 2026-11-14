@@ -70,6 +70,14 @@ métricas comparativas más ricas, preparado para integrar con el Core en produc
   actualizado si cambia el contrato.
 - **Esfuerzo:** S
 
+### HU-S1-08 — Migrar TestClient a httpx2
+
+- **Descripción:** FastAPI/Starlette deprecó `httpx` en `TestClient`. Migrar a
+  `httpx2` cuando la versión estable lo requiera.
+- **Criterio:** 0 warnings de `StarletteDeprecationWarning` en `pytest -v`.
+- **Esfuerzo:** S
+- **Prioridad:** P2 (mantenimiento, no bloquea)
+
 ## Fuera de alcance (Sprint 2+)
 
 - FastDTW / alineamiento avanzado.

@@ -6,12 +6,29 @@
 
 ## Versión
 
-- **Tag:** sin tag (no es repo git); fingerprint de referencia `v0.2.2`:
+- **Tag:** `v0.2.2` (annotated; tag object
+  `2bfae4ad0a4ff174e7cba49e1e4736a4bc1af6e0`).
+- **Commit:** `42eda5af3fb76448ede84dc886936091d7955217` (release commit).
+- **Fecha:** 2026-11-14T16:14:26-04:00.
+- **Fingerprint (respaldo):**
   `821a796d9f6e27e49b1a22c35319ba0fe227600ed90c5defb4b05bece31e92ae`
   (árbol `singing-service/`, excluye `.venv`, caches,
   `singing-service/integration/fixtures` y `CHANGELOG.md`).
-- **Commit:** sin commit (no hay `.git`); fingerprint como referencia.
-- **Fecha:** 2026-11-14 (fecha del cierre documental).
+
+## Cómo obtener esta versión
+
+```bash
+git clone <repo-url>
+cd App-SyncDance
+git checkout v0.2.2
+cd singing-service
+docker compose up -d singing-service
+bash integration/verify_handoff.sh   # debe dar HANDOFF OK
+```
+
+Verificación de integridad: `git rev-parse v0.2.2^{commit}` debe devolver
+`42eda5af3fb76448ede84dc886936091d7955217`. `git rev-parse v0.2.2` devuelve el
+objeto anotado `2bfae4ad0a4ff174e7cba49e1e4736a4bc1af6e0`.
 
 ## Calidad
 
