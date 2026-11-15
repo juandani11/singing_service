@@ -6,10 +6,9 @@
 
 ## Versión
 
-- **Tag:** `v0.2.2` (annotated; tag object
-  `fdad4cc5dc5c9dd2576e375e2bfdbe431864e71c`).
-- **Commit:** `1b9271bc22db876416772893afc48ca753600a05` (release commit).
-- **Fecha:** 2026-11-14T16:20:37-04:00.
+- **Tag:** `v0.2.2`
+- **Commit (release docs):** `dc9808705b22508f28e5321959e264655cac7aa3`.
+- **Fecha:** 2026-11-14T16:22:07-04:00.
 - **Fingerprint (respaldo):**
   `821a796d9f6e27e49b1a22c35319ba0fe227600ed90c5defb4b05bece31e92ae`
   (árbol `singing-service/`, excluye `.venv`, caches,
@@ -26,9 +25,10 @@ docker compose up -d singing-service
 bash integration/verify_handoff.sh   # debe dar HANDOFF OK
 ```
 
-Verificación de integridad: `git rev-parse v0.2.2^{commit}` debe devolver
-`1b9271bc22db876416772893afc48ca753600a05`. `git rev-parse v0.2.2` devuelve el
-objeto anotado `fdad4cc5dc5c9dd2576e375e2bfdbe431864e71c`.
+Verificación de integridad: `git rev-parse v0.2.2^{commit}` devuelve el commit de
+metadata HEAD (el tag apunta a él); el commit de release documentado es
+`dc9808705b22508f28e5321959e264655cac7aa3`. `git rev-parse v0.2.2` devuelve el
+objeto anotado del tag.
 
 ## Calidad
 

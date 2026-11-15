@@ -1,3 +1,4 @@
-# Dependencias de desarrollo (cobertura). El runtime NO instala este archivo.
+# Dependencias de desarrollo. El runtime ya incluye pytest/pytest-cov para
+# poder correr la suite dentro de la imagen Docker.
 -r requirements.txt
-pytest-cov>=5.0,<8.0
+pytest-cov==7.1.0

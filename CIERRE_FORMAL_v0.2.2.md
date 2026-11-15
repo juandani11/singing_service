@@ -3,6 +3,38 @@
 > Cierre formal del workspace `App-SyncDance` con repo git, tag `v0.2.2`, tests de
 > handlers y verificación final. Fecha: 2026-11-14.
 
+## Tag final (actualizado)
+
+- **Tag:** `v0.2.2` (annotated) → commit de metadata **HEAD (D)**, que incluye los
+  fixes de Docker + docs.
+- **Release commit (docs SHA):** `dc9808705b22508f28e5321959e264655cac7aa3`.
+- `git rev-parse v0.2.2^{commit}` = HEAD (D); `git rev-parse HEAD` = D.
+- **Nota:** un commit no puede contener su propio SHA. El tag apunta al commit de
+  metadata que incluye los docs; los docs referencian el release `dc98087`.
+- La sección 1 es el historial del proceso; este bloque es el estado final.
+
+## Docker/Python parity (Caso B resuelto)
+
+- Local: Python 3.14.6; Docker: `python:3.14.6-slim` (3.14.6).
+- Librerías pinneadas: librosa 1.0.0, numba 0.68.0, scipy 1.18.1, numpy 2.5.3.
+- `pytest -v` local: **83 passed, 97 %**.
+- `pytest -v` dentro de Docker: **83 passed, 97 %**.
+- Clasificación: **Caso B resuelto** (Docker 3.14.10 inicial → pin a 3.14.6 + libs
+  exactas; ambos entornos verdes).
+
+## Cambios en app/main.py
+
+En v0.2.2 se añadieron/modificaron en `app/main.py`:
+
+- Middleware `X-Request-ID` (P0-01).
+- Handlers `HTTPException`, `RequestValidationError`, `UNHANDLED_ERROR` (con
+  `request_id`).
+- `/health` incluye `request_id`.
+
+NO se modificó la lógica de análisis (`app/core/`, `app/services/`,
+`app/api/routes/analyze.py`). La cobertura de `app/main.py` pasó de 91 % a 100 % por
+los tests de handlers (v0.2.2), no por cambios de lógica de negocio.
+
 ## 1. Git — inicialización, commit y tag
 
 ### 1.1 `git init`

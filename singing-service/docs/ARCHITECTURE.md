@@ -104,10 +104,9 @@ Pasos:
 
 ## 6. Dependencias externas
 
-- **Python 3.14.6** — verificado con librosa 1.0.0, numba 0.68.0, scipy 1.18.1,
-  numpy 2.5.3 (venv del servicio; el `python` global de Windows no está instalado).
-  Si alguna librería falla al importar, considerar downgrade a 3.12 (LTS de facto
-  para ML/DSP).
+- **Python 3.14.6** — local venv y Docker (`python:3.14.6-slim`). Librerías
+  pinneadas: librosa 1.0.0, numba 0.68.0, scipy 1.18.1, numpy 2.5.3.
+  Ambas suites: **83 tests, 97 %**; sin diferencias conocidas.
 - **FFmpeg** (sistema/Docker): decodificación y normalización de audio.
 - **librosa**, **soundfile**, **numpy**, **scipy**: pitch y análisis.
 - **numba/llvmlite**: JIT de pyin (causa el arranque frío).
