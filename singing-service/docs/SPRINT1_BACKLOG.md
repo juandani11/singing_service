@@ -78,6 +78,24 @@ métricas comparativas más ricas, preparado para integrar con el Core en produc
 - **Esfuerzo:** S
 - **Prioridad:** P2 (mantenimiento, no bloquea)
 
+## Deuda técnica (Sprint 4)
+
+### HU-S4-01 — Recalibrar `scores.estabilidad` con datos reales
+
+- **Contexto:** la fórmula actual `100 − 2·σ(cents)` (mín. 0, `Docs/scoring.md`
+  línea 47) cae a 0 con `σ ≥ 50`, lo que ocurre con cualquier cantante con vibrato
+  natural. Evidencia: `AUDITORIA_BUGS_B_C.md` A3 + MASTmelody (229.2 → 0).
+- **No es bug:** documentado en `Docs/scoring.md`.
+- **Riesgo de no hacerlo:** UX pobre; el alumno ve "0" en casos no catastróficos.
+- **Riesgo de hacerlo antes de Sprint 1:** enmascara el problema real
+  (`pitch_accuracy` bajo por falta de FastDTW).
+- **Criterios de aceptación:** medir σ de 10+ cantantes reales
+  (amateur/intermedio/avanzado), definir curva con justificación, tests con casos
+  reales, actualizar `Docs/scoring.md`.
+- **Dependencias:** FastDTW implementado + datos reales de usuarios.
+- **Sprint objetivo:** 4 (cuando hay usuarios reales).
+- **Esfuerzo:** M.
+
 ## Fuera de alcance (Sprint 2+)
 
 - FastDTW / alineamiento avanzado.

@@ -4,6 +4,13 @@ Todos los cambios notables de `singing-service` se documentan aquí.
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/);
 versionado [SemVer](https://semver.org/lang/es/).
 
+## [Unreleased]
+
+### Documentación
+
+- Nota C en `docs/celery-contract.md` §4: cardinalidad de `feedback` (1 por tipo, no por segmento).
+- Deuda técnica B documentada en `docs/SPRINT1_BACKLOG.md`: recalibrar `scores.estabilidad` en Sprint 4 con datos reales.
+
 ## [0.2.2] — 2026-11-14
 
 ### Añadido

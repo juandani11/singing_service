@@ -115,6 +115,8 @@ httpx.Timeout(connect=5.0, read=300.0)
 | `feedback[].code` | `NO_VOICE`, `UNSTABLE_PITCH`, `PITCH_OUT_OF_RANGE` | `OUT_OF_TUNE`, `NO_VOICE` | códigos estables para i18n |
 | `timings` | preprocess/pitch/dtw/scoring | idem | `dtw_ms` = comparación temporal simple |
 
+> **Nota C — cardinalidad de `feedback`.** El array `feedback` contiene **1 ítem por tipo** (`OUT_OF_TUNE`, `NO_VOICE`), **no 1 por segmento**. En `OUT_OF_TUNE` se reporta la **peor desviación** (mayor `delta_cents`). Los detalles completos por segmento están en `segments[]`. Comportamiento documentado en `Docs/scoring.md` §Feedback. Un cambio a 1 feedback por segmento sería BREAKING y requiere coordinación con Core.
+
 **Crítico para el Core:** tolerar `null` en `pitch.reference`, `pitch_accuracy`,
 `average_cent_deviation` y `rhythm_accuracy`. No usar `rhythm_accuracy` para
 puntuaciones todavía.
