@@ -241,7 +241,11 @@
                     "models_loaded": {
                       "ok": true
                     },
-                    "disk_space_mb": 952675
+                    "disk_space_mb": 952675,
+                    "warmup": {
+                      "ok": true,
+                      "duration_ms": 2710.5
+                    }
                   },
                   "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e",
                   "timestamp": "2026-11-14T19:07:53.272048+00:00"
@@ -268,7 +272,10 @@
                     "models_loaded": {
                       "ok": true
                     },
-                    "disk_space_mb": 952675
+                    "disk_space_mb": 952675,
+                    "warmup": {
+                      "ok": false
+                    }
                   },
                   "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e",
                   "timestamp": "2026-11-14T19:12:15.713759+00:00"

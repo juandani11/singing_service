@@ -24,7 +24,7 @@ curl http://localhost:5000/health
 ```
 
 ```json
-{"status":"ok","service":"singing-service","version":"0.3.0","checks":{"ffmpeg":{"ok":true,"version":"7.1.5-0+deb13u1"},"librosa":{"ok":true,"version":"1.0.0"},"models_loaded":{"ok":true},"disk_space_mb":945681},"request_id":"1179d2d633aa4d15a6ec751ef01f2c2c","timestamp":"2026-11-15T19:40:29.222900+00:00"}
+{"status":"ok","service":"singing-service","version":"0.3.0","checks":{"ffmpeg":{"ok":true,"version":"7.1.5-0+deb13u1"},"librosa":{"ok":true,"version":"1.0.0"},"models_loaded":{"ok":true},"disk_space_mb":943399,"warmup":{"ok":true,"duration_ms":6090.6}},"request_id":"0a2e3487cd38468890e455be4d4a5d5f","timestamp":"2026-11-15T20:34:25.762105+00:00"}
 ```
 
 ### 2.2 Primer request (curl)
@@ -171,7 +171,7 @@ curl http://localhost:5000/api/v1/analyze/<analysis_id>
 - **Response 200** (real):
 
 ```json
-{"status":"ok","service":"singing-service","version":"0.3.0","checks":{"ffmpeg":{"ok":true,"version":"7.1.5-0+deb13u1"},"librosa":{"ok":true,"version":"1.0.0"},"models_loaded":{"ok":true},"disk_space_mb":945681},"request_id":"1179d2d633aa4d15a6ec751ef01f2c2c","timestamp":"2026-11-15T19:40:29.222900+00:00"}
+{"status":"ok","service":"singing-service","version":"0.3.0","checks":{"ffmpeg":{"ok":true,"version":"7.1.5-0+deb13u1"},"librosa":{"ok":true,"version":"1.0.0"},"models_loaded":{"ok":true},"disk_space_mb":943399,"warmup":{"ok":true,"duration_ms":6090.6}},"request_id":"0a2e3487cd38468890e455be4d4a5d5f","timestamp":"2026-11-15T20:34:25.762105+00:00"}
 ```
 
 - **Response 503** si falta FFmpeg o librosa no carga (ver §9).
@@ -375,7 +375,8 @@ Core persiste scores/metrics/segments/feedback en su DB
 
 ### 8.3 Timeouts recomendados
 
-`connect=5 s`, `read=300 s` (un audio de 10 min puede tardar ~4 min; JIT frío aparte).
+`connect=5 s`, `read=300 s` (un audio de 10 min puede tardar ~4 min; JIT mitigado por
+warm-up en v0.3.0).
 
 ### 8.4 Tarea Celery de ejemplo
 
@@ -414,7 +415,7 @@ def analyze_vocal(self, attempt_id, routine_id, audio_path, reference_path=None)
 | `413 AUDIO_TOO_LARGE` | > 50 MB | comprimir en Flutter |
 | `413 AUDIO_TOO_LONG` | > 600 s | truncar/dividir |
 | `503` en `/health` | falta FFmpeg/librosa | `docker compose build --no-cache singing-service` |
-| primer request lento | JIT de numba | warm-up (HU-S1-06); timeout ≥ 300 s |
+| primer request lento | JIT de numba | mitigado en v0.3.0 (warm-up en lifespan); timeout ≥ 60 s por si el warm-up falla |
 | `verify_handoff.sh` falla en Windows | requiere Git Bash/WSL | ver `integration/README.md` |
 
 Detalle: [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).

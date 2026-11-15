@@ -9,6 +9,7 @@ import logging
 import os
 import shutil
 import sys
+import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -53,10 +54,12 @@ tags_metadata = [
 
 @dataclass
 class AppState:
-    """Flags de ciclo de vida (HU-S1-02; `shutting_down` queda para H-04)."""
+    """Flags de ciclo de vida (HU-S1-02/HU-S1-03; `shutting_down` para H-04)."""
 
     ready: bool = False
     shutting_down: bool = False
+    warmup_completed: bool = False
+    warmup_duration_ms: float | None = None
 
 
 app_state = AppState()
@@ -96,14 +99,79 @@ def _self_test() -> bool:
     return bool(_check_ffmpeg()["ok"]) and bool(_check_librosa()["ok"])
 
 
+def _skip_warmup() -> bool:
+    """`SKIP_WARMUP=true|1|yes|on` evita el warm-up (tests/entornos rápidos)."""
+    return os.environ.get("SKIP_WARMUP", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _warmup() -> None:
+    """Fuerza el JIT de `librosa.pyin` con un sine 440 Hz en memoria (HU-S1-03)."""
+    started = time.perf_counter()
+    try:
+        import librosa
+        import numpy as np
+
+        sr = settings.sample_rate
+        t = np.arange(int(0.5 * sr)) / sr
+        y = (0.3 * np.sin(2 * np.pi * 440.0 * t)).astype(np.float32)
+        f0, _voiced, _prob = librosa.pyin(
+            y,
+            fmin=65.0,
+            fmax=1600.0,
+            sr=sr,
+            hop_length=settings.hop_length,
+            frame_length=2048,
+        )
+        values = f0[np.isfinite(f0)]
+        detected = float(np.median(values)) if values.size else 0.0
+        duration_ms = round((time.perf_counter() - started) * 1000, 2)
+        app_state.warmup_duration_ms = duration_ms
+        if abs(detected - 440.0) <= 5.0:
+            app_state.warmup_completed = True
+            log_event(
+                logging.INFO,
+                "warmup_completed",
+                duration_ms=duration_ms,
+                detected_hz=round(detected, 2),
+            )
+        else:
+            app_state.warmup_completed = False
+            log_event(
+                logging.WARNING,
+                "warmup_failed",
+                error=f"unexpected_hz:{detected:.2f}",
+            )
+    except Exception as exc:  # el servicio puede atender sin warm-up
+        app_state.warmup_completed = False
+        app_state.warmup_duration_ms = round(
+            (time.perf_counter() - started) * 1000, 2
+        )
+        log_event(
+            logging.WARNING,
+            "warmup_failed",
+            error=f"{type(exc).__name__}: {exc}",
+        )
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    """Startup: self-test + ready; shutdown: flag `shutting_down` (H-04)."""
+    """Startup: self-test + warm-up + ready; shutdown: flag `shutting_down` (H-04)."""
     app_state.ready = False
     app_state.shutting_down = False
+    app_state.warmup_completed = False
+    app_state.warmup_duration_ms = None
     if not await run_in_threadpool(_self_test):
         log_event(logging.ERROR, "startup_self_test_failed")
         sys.exit(1)
+    if _skip_warmup():
+        log_event(logging.INFO, "warmup_skipped")
+    else:
+        await run_in_threadpool(_warmup)
     app_state.ready = True
     try:
         yield
@@ -193,6 +261,7 @@ async def _validation_exception_handler(
                             "librosa": {"ok": True, "version": "1.0.0"},
                             "models_loaded": {"ok": True},
                             "disk_space_mb": 952675,
+                            "warmup": {"ok": True, "duration_ms": 2710.5},
                         },
                         "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e",
                         "timestamp": "2026-11-14T19:07:53.272048+00:00",
@@ -213,6 +282,7 @@ async def _validation_exception_handler(
                             "librosa": {"ok": True, "version": "1.0.0"},
                             "models_loaded": {"ok": True},
                             "disk_space_mb": 952675,
+                            "warmup": {"ok": False, "duration_ms": None},
                         },
                         "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e",
                         "timestamp": "2026-11-14T19:12:15.713759+00:00",
@@ -235,6 +305,10 @@ async def health() -> JSONResponse:
         # pyin es parte de librosa: no hay modelos externos que cargar.
         "models_loaded": {"ok": bool(librosa["ok"])},
         "disk_space_mb": await run_in_threadpool(_disk_space_mb),
+        "warmup": {
+            "ok": app_state.warmup_completed,
+            "duration_ms": app_state.warmup_duration_ms,
+        },
     }
     healthy = bool(ffmpeg["ok"]) and bool(librosa["ok"])
     payload = {

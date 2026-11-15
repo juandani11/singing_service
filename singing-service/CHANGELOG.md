@@ -12,16 +12,20 @@ versionado [SemVer](https://semver.org/lang/es/).
 - `GET /version` (version, git_sha, build_time, python, ffmpeg, fastapi, librosa).
 - `app_state` + lifespan con self-test de arranque y flag `shutting_down`.
 - Dockerfile `ARG/ENV GIT_SHA/BUILD_TIME`; compose `build.args`.
-- `tests/test_hu_s1_02.py` (9 tests).
+- Warm-up de `librosa.pyin` en lifespan (sine 440 Hz en memoria) para mitigar el JIT.
+- `SKIP_WARMUP` (default `false`) para omitir el warm-up.
+- `/health` `checks.warmup` (`{"ok": bool, "duration_ms": float|null}`), aditivo.
+- `tests/test_hu_s1_02.py` (9 tests) y `tests/test_hu_s1_03.py` (8 tests); total 100.
 
 ### Cambiado
 
 - `settings.version` 0.2.0 → 0.3.0.
-- `/health` ahora `async def` + `run_in_threadpool` (mismo shape).
+- `/health` ahora `async def` + `run_in_threadpool` (mismo shape + `checks.warmup`).
 
 ### Documentación
 
-- `docs/celery-contract.md` §4.1, `docs/USAGE.md`, `docs/ARCHITECTURE.md` §6.1.
+- `docs/celery-contract.md` §3 (timeout) y §4.1; `docs/USAGE.md`;
+  `docs/ARCHITECTURE.md` §6.1, §6.2 y §7.
 
 ## [Unreleased]
 

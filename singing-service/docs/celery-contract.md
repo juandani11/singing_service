@@ -83,7 +83,7 @@ Respuesta `202`:
 | Parámetro | Valor | Justificación |
 |---|---|---|
 | connect | **5 s** | red interna Docker; si no conecta en 5 s, el servicio está caído |
-| read | **300 s** | un audio de 10 min puede tardar hasta ~4 min (FFmpeg + pyin + comparación; margen para JIT frío de numba) |
+| read | **300 s** | un audio de 10 min puede tardar hasta ~4 min (FFmpeg + pyin + comparación); margen de seguridad. El warm-up mitiga el JIT (primer request <2 s); mantener 300 s por si el warm-up falla |
 
 ```python
 httpx.Timeout(connect=5.0, read=300.0)
@@ -141,6 +141,9 @@ puntuaciones todavía.
 curl http://singing-service:5000/ready
 curl http://singing-service:5000/version
 ```
+
+> `/health` incluye `checks.warmup` (`{"ok": bool, "duration_ms": float|null}`) desde
+> v0.3.0. Es **aditivo y no-BREAKING**: los clientes existentes lo ignoran.
 
 ## 5. Matriz de errores
 

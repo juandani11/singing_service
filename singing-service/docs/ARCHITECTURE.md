@@ -32,7 +32,7 @@ singing-service/
 │   │   ├── rhythm_eval.py       # stub (diferido a Sprint 1)
 │   │   └── align.py             # FastDTW (reservado para Sprint 1; no en la ruta)
 │   └── mock/data.py             # fixture con valores de Figma (no expuesto por API)
-├── tests/                       # 91 tests de servicio (+1 de integración)
+├── tests/                       # 99 tests de servicio (+1 de integración)
 ├── integration/                 # simulador Celery, matriz de errores, fixtures, verify
 └── docs/                        # contrato, arquitectura, backlog, troubleshooting
 ```
@@ -106,7 +106,7 @@ Pasos:
 
 - **Python 3.14.6** — local venv y Docker (`python:3.14.6-slim`). Librerías
   pinneadas: librosa 1.0.0, numba 0.68.0, scipy 1.18.1, numpy 2.5.3.
-  Ambas suites: **92 tests, 97 %**; sin diferencias conocidas.
+  Ambas suites: **100 tests, 98 %**; sin diferencias conocidas.
 - **FFmpeg** (sistema/Docker): decodificación y normalización de audio.
 - **librosa**, **soundfile**, **numpy**, **scipy**: pitch y análisis.
 - **numba/llvmlite**: JIT de pyin (causa el arranque frío).
@@ -128,10 +128,18 @@ $env:GIT_SHA = (git rev-parse --short HEAD); $env:BUILD_TIME = (Get-Date -Format
 
 Si no se pasan, `/version` muestra `"unknown"` (no falla).
 
+## 6.2 Configuración de warm-up (`SKIP_WARMUP`)
+
+El lifespan ejecuta un warm-up de `librosa.pyin` (sine 440 Hz, 0.5 s, en memoria)
+para forzar el JIT de numba antes del primer request. `SKIP_WARMUP=true|1|yes|on`
+lo omite (tests/entornos rápidos); por defecto se ejecuta. El resultado se expone en
+`/health` (`checks.warmup`) y en el log `warmup_completed`/`warmup_failed`.
+
 ## 7. Riesgos conocidos
 
-- **JIT frío de numba/llvmlite:** el primer análisis puede tardar ~25 s; mitigación en
-  HU-S1-06 (warm-up).
+- **JIT frío de numba/llvmlite:** mitigado con warm-up en lifespan (HU-S1-03).
+  Primer request: 10 s → <2 s (ver `CIERRE_HU_S1_03.md`); el startup paga ~2.7 s
+  de warm-up en local.
 - **CPU-bound:** pyin/FFmpeg consumen CPU; escalar horizontalmente (réplicas/HPA) y
   mantener el semáforo para no saturar.
 - **Imagen Docker ~1.6 GB** (aceptable; revisar si crece con CREPE/GPU).

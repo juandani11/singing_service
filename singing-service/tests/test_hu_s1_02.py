@@ -102,7 +102,8 @@ def test_pkg_version_unknown() -> None:
     assert _pkg_version("definitely-not-a-package") == "unknown"
 
 
-def test_lifespan_sets_ready_and_shutting_down() -> None:
+def test_lifespan_sets_ready_and_shutting_down(monkeypatch) -> None:
+    monkeypatch.setenv("SKIP_WARMUP", "true")
     with TestClient(app) as lifespan_client:
         assert app_state.ready is True
         response = lifespan_client.get("/ready")
