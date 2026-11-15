@@ -121,6 +121,27 @@ httpx.Timeout(connect=5.0, read=300.0)
 `average_cent_deviation` y `rhythm_accuracy`. No usar `rhythm_accuracy` para
 puntuaciones todavía.
 
+## 4.1 Endpoints de sistema (`/ready`, `/version`)
+
+- **`GET /ready` — readiness (K8s/Docker).** Diferente de `/health` (liveness).
+  - `200` `{"ready": true, "reason": null, "request_id": "..."}` cuando el startup
+    self-test terminó y FFmpeg está disponible.
+  - `503` `{"ready": false, "reason": "warmup"}` durante arranque.
+  - `503` `{"ready": false, "reason": "shutting_down"}` tras SIGTERM (flag para H-04).
+  - `503` `{"ready": false, "reason": "ffmpeg_unavailable"}` si `/health` detectaría
+    FFmpeg roto.
+  - K8s: `/ready` para `readinessProbe`; `/health` para `livenessProbe`.
+- **`GET /version` — metadatos de build.** `200` con `version`, `git_sha`,
+  `build_time`, `python`, `ffmpeg`, `fastapi`, `librosa` y `request_id`.
+  `git_sha`/`build_time` vienen de `GIT_SHA`/`BUILD_TIME` inyectados en build; si
+  faltan, `"unknown"`. Para debug, no para lógica de Core.
+- Ambas respuestas incluyen `X-Request-ID` (middleware).
+
+```bash
+curl http://singing-service:5000/ready
+curl http://singing-service:5000/version
+```
+
 ## 5. Matriz de errores
 
 | Código HTTP | Code | Causa | Acción recomendada para Core |

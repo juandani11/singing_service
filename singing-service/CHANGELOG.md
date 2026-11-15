@@ -4,6 +4,25 @@ Todos los cambios notables de `singing-service` se documentan aquí.
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/);
 versionado [SemVer](https://semver.org/lang/es/).
 
+## [0.3.0-dev] — 2026-11-15
+
+### Añadido
+
+- `GET /ready` (readiness: `warmup`, `shutting_down`, `ffmpeg_unavailable`).
+- `GET /version` (version, git_sha, build_time, python, ffmpeg, fastapi, librosa).
+- `app_state` + lifespan con self-test de arranque y flag `shutting_down`.
+- Dockerfile `ARG/ENV GIT_SHA/BUILD_TIME`; compose `build.args`.
+- `tests/test_hu_s1_02.py` (9 tests).
+
+### Cambiado
+
+- `settings.version` 0.2.0 → 0.3.0.
+- `/health` ahora `async def` + `run_in_threadpool` (mismo shape).
+
+### Documentación
+
+- `docs/celery-contract.md` §4.1, `docs/USAGE.md`, `docs/ARCHITECTURE.md` §6.1.
+
 ## [Unreleased]
 
 ### Documentación

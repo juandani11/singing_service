@@ -4,7 +4,7 @@ Microservicio **stateless** de análisis de canto (pitch, ritmo y feedback) para
 SyncDance AI. Recibe un audio, devuelve métricas y feedback; no gestiona auth ni
 persiste (la fuente de verdad es el Core).
 
-**Estado:** Sprint 0 cerrado (**v0.2.0**). Handoff a Core firmado.
+**Estado:** Sprint 1 en curso (**v0.3.0-dev**). Base v0.2.3 (Sprint 0 cerrado).
 
 ## Quick start
 
@@ -44,4 +44,4 @@ FastAPI (≥0.115), Uvicorn, librosa, ffmpeg-python, soundfile, numpy, scipy.
 
 ## Calidad
 
-**83 tests**, **97 % de cobertura**, `ruff` OK. `verify_handoff.sh` → `HANDOFF OK`.
+**92 tests**, **97 % de cobertura**, `ruff` OK. `verify_handoff.sh` → `HANDOFF OK`.

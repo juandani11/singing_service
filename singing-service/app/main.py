@@ -1,14 +1,21 @@
 """Aplicación FastAPI del microservicio de voz.
 
-Sprint 0: scaffold + /health extendido + /docs (contrato OpenAPI v1 híbrido).
+Sprint 0: scaffold + /health extendido + /docs.
+Sprint 1 (HU-S1-02): /ready (readiness) + /version (metadatos de build).
 """
 
+import importlib.metadata
 import logging
+import os
 import shutil
+import sys
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import FastAPI, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -16,6 +23,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.routes.analyze import router as analyze_router
 from app.core.config import settings
+from app.core.log import log_event
 from app.middleware.request_id import (
     RequestIDLogFilter,
     RequestIDMiddleware,
@@ -42,6 +50,68 @@ tags_metadata = [
     },
 ]
 
+
+@dataclass
+class AppState:
+    """Flags de ciclo de vida (HU-S1-02; `shutting_down` queda para H-04)."""
+
+    ready: bool = False
+    shutting_down: bool = False
+
+
+app_state = AppState()
+
+
+def _check_ffmpeg() -> dict:
+    version = ffmpeg_version()
+    return {"ok": version is not None, "version": version}
+
+
+def _check_librosa() -> dict:
+    try:
+        import librosa
+
+        return {"ok": True, "version": librosa.__version__}
+    except Exception as exc:  # import roto o binarios incompatibles
+        return {"ok": False, "version": None, "error": type(exc).__name__}
+
+
+def _disk_space_mb() -> int:
+    try:
+        return int(shutil.disk_usage(Path.cwd()).free // (1024 * 1024))
+    except OSError:
+        return 0
+
+
+def _pkg_version(name: str) -> str:
+    """Versión instalada de un paquete; `unknown` si no está disponible."""
+    try:
+        return importlib.metadata.version(name)
+    except Exception:
+        return "unknown"
+
+
+def _self_test() -> bool:
+    """Comprueba dependencias críticas antes de marcar `ready`."""
+    return bool(_check_ffmpeg()["ok"]) and bool(_check_librosa()["ok"])
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Startup: self-test + ready; shutdown: flag `shutting_down` (H-04)."""
+    app_state.ready = False
+    app_state.shutting_down = False
+    if not await run_in_threadpool(_self_test):
+        log_event(logging.ERROR, "startup_self_test_failed")
+        sys.exit(1)
+    app_state.ready = True
+    try:
+        yield
+    finally:
+        app_state.shutting_down = True
+        app_state.ready = False
+
+
 app = FastAPI(
     title="SyncDance AI — singing-service",
     description=(
@@ -58,6 +128,7 @@ app = FastAPI(
     openapi_tags=tags_metadata,
     contact={"name": "SyncDance AI — Equipo 7"},
     license_info={"name": "Uso interno — SyncDance AI"},
+    lifespan=lifespan,
 )
 
 app.include_router(analyze_router)
@@ -99,34 +170,14 @@ async def _validation_exception_handler(
     )
 
 
-def _check_ffmpeg() -> dict:
-    version = ffmpeg_version()
-    return {"ok": version is not None, "version": version}
-
-
-def _check_librosa() -> dict:
-    try:
-        import librosa
-
-        return {"ok": True, "version": librosa.__version__}
-    except Exception as exc:  # import roto o binarios incompatibles
-        return {"ok": False, "version": None, "error": type(exc).__name__}
-
-
-def _disk_space_mb() -> int:
-    try:
-        return int(shutil.disk_usage(Path.cwd()).free // (1024 * 1024))
-    except OSError:
-        return 0
-
-
 @app.get(
     "/health",
     tags=["Salud"],
-    summary="Health check con dependencias",
+    summary="Liveness check con dependencias",
     description=(
-        "Estado del servicio y de sus dependencias (ffmpeg, librosa, modelos y "
-        "disco). Devuelve **503 `degraded`** si falta FFmpeg o librosa no carga."
+        "Liveness: estado del servicio y de sus dependencias (ffmpeg, librosa, "
+        "modelos y disco). Devuelve **503 `degraded`** si falta FFmpeg o librosa "
+        "no carga. Para readiness usa `/ready`."
     ),
     responses={
         200: {
@@ -136,10 +187,10 @@ def _disk_space_mb() -> int:
                     "example": {
                         "status": "ok",
                         "service": "singing-service",
-                        "version": "0.2.0",
+                        "version": "0.3.0",
                         "checks": {
                             "ffmpeg": {"ok": True, "version": "7.1.5"},
-                            "librosa": {"ok": True, "version": "1.0.1"},
+                            "librosa": {"ok": True, "version": "1.0.0"},
                             "models_loaded": {"ok": True},
                             "disk_space_mb": 952675,
                         },
@@ -156,10 +207,10 @@ def _disk_space_mb() -> int:
                     "example": {
                         "status": "degraded",
                         "service": "singing-service",
-                        "version": "0.2.0",
+                        "version": "0.3.0",
                         "checks": {
                             "ffmpeg": {"ok": False, "version": None},
-                            "librosa": {"ok": True, "version": "1.0.1"},
+                            "librosa": {"ok": True, "version": "1.0.0"},
                             "models_loaded": {"ok": True},
                             "disk_space_mb": 952675,
                         },
@@ -171,19 +222,19 @@ def _disk_space_mb() -> int:
         },
     },
 )
-def health() -> JSONResponse:
+async def health() -> JSONResponse:
     """Estado del servicio y de sus dependencias (ffmpeg, librosa, disco).
 
     `degraded` (HTTP 503) si falta FFmpeg o librosa no carga.
     """
-    ffmpeg = _check_ffmpeg()
-    librosa = _check_librosa()
+    ffmpeg = await run_in_threadpool(_check_ffmpeg)
+    librosa = await run_in_threadpool(_check_librosa)
     checks = {
         "ffmpeg": ffmpeg,
         "librosa": librosa,
         # pyin es parte de librosa: no hay modelos externos que cargar.
         "models_loaded": {"ok": bool(librosa["ok"])},
-        "disk_space_mb": _disk_space_mb(),
+        "disk_space_mb": await run_in_threadpool(_disk_space_mb),
     }
     healthy = bool(ffmpeg["ok"]) and bool(librosa["ok"])
     payload = {
@@ -195,3 +246,111 @@ def health() -> JSONResponse:
         "timestamp": datetime.now(UTC).isoformat(),
     }
     return JSONResponse(payload, status_code=200 if healthy else 503)
+
+
+@app.get(
+    "/ready",
+    tags=["Salud"],
+    summary="Readiness probe (K8s/Docker)",
+    description=(
+        "Readiness: indica si el servicio puede atender tráfico. **200** cuando "
+        "está listo; **503** durante `warmup`, tras `shutting_down` o si "
+        "`ffmpeg_unavailable`. Diferente de `/health` (liveness)."
+    ),
+    responses={
+        200: {
+            "description": "Listo para atender",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "ready": True,
+                        "reason": None,
+                        "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e",
+                    }
+                }
+            },
+        },
+        503: {
+            "description": "No listo (warmup, shutting_down o ffmpeg_unavailable)",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "ready": False,
+                        "reason": "warmup",
+                        "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e",
+                    }
+                }
+            },
+        },
+    },
+)
+async def ready() -> JSONResponse:
+    """Readiness probe con `request_id` (middleware `X-Request-ID`)."""
+    rid = get_request_id()
+    if app_state.shutting_down:
+        return JSONResponse(
+            status_code=503,
+            content={"ready": False, "reason": "shutting_down", "request_id": rid},
+        )
+    if not app_state.ready:
+        return JSONResponse(
+            status_code=503,
+            content={"ready": False, "reason": "warmup", "request_id": rid},
+        )
+    ffmpeg = await run_in_threadpool(_check_ffmpeg)
+    if not ffmpeg["ok"]:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "ready": False,
+                "reason": "ffmpeg_unavailable",
+                "request_id": rid,
+            },
+        )
+    return JSONResponse(
+        status_code=200,
+        content={"ready": True, "reason": None, "request_id": rid},
+    )
+
+
+@app.get(
+    "/version",
+    tags=["Sistema"],
+    summary="Metadatos de versión y build",
+    description=(
+        "Versión del servicio, commit/build inyectados en la imagen "
+        "(`GIT_SHA`, `BUILD_TIME`) y versiones de runtime (debug)."
+    ),
+    responses={
+        200: {
+            "description": "Metadatos de versión",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "version": "0.3.0",
+                        "git_sha": "abc1234",
+                        "build_time": "2026-11-15T12:00:00Z",
+                        "python": "3.14.6",
+                        "ffmpeg": "7.1.5",
+                        "fastapi": "0.142.2",
+                        "librosa": "1.0.0",
+                        "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e",
+                    }
+                }
+            },
+        }
+    },
+)
+async def version() -> dict:
+    """Metadatos de versión/build/runtime (sin crashear si falta algo)."""
+    ffmpeg = await run_in_threadpool(ffmpeg_version)
+    return {
+        "version": settings.version,
+        "git_sha": os.environ.get("GIT_SHA") or "unknown",
+        "build_time": os.environ.get("BUILD_TIME") or "unknown",
+        "python": sys.version.split()[0] if sys.version else "unknown",
+        "ffmpeg": ffmpeg or "unknown",
+        "fastapi": _pkg_version("fastapi"),
+        "librosa": _pkg_version("librosa"),
+        "request_id": get_request_id(),
+    }

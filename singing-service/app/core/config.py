@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     service_name: str = "singing-service"
-    version: str = "0.2.0"
+    version: str = "0.3.0"
 
     # Almacén stateless con TTL para analysis_id (plan §2.1)
     analysis_ttl_seconds: int = 3600

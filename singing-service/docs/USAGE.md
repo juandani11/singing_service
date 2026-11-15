@@ -24,7 +24,7 @@ curl http://localhost:5000/health
 ```
 
 ```json
-{"status":"ok","service":"singing-service","version":"0.2.0","checks":{"ffmpeg":{"ok":true,"version":"7.1.5-0+deb13u1"},"librosa":{"ok":true,"version":"1.0.1"},"models_loaded":{"ok":true},"disk_space_mb":952673},"request_id":"f126e66412cd4ad9aeea35ee425129a8","timestamp":"2026-11-14T19:33:49.158075+00:00"}
+{"status":"ok","service":"singing-service","version":"0.3.0","checks":{"ffmpeg":{"ok":true,"version":"7.1.5-0+deb13u1"},"librosa":{"ok":true,"version":"1.0.0"},"models_loaded":{"ok":true},"disk_space_mb":945681},"request_id":"1179d2d633aa4d15a6ec751ef01f2c2c","timestamp":"2026-11-15T19:40:29.222900+00:00"}
 ```
 
 ### 2.2 Primer request (curl)
@@ -171,28 +171,44 @@ curl http://localhost:5000/api/v1/analyze/<analysis_id>
 - **Response 200** (real):
 
 ```json
-{"status":"ok","service":"singing-service","version":"0.2.0","checks":{"ffmpeg":{"ok":true,"version":"7.1.5-0+deb13u1"},"librosa":{"ok":true,"version":"1.0.1"},"models_loaded":{"ok":true},"disk_space_mb":952673},"request_id":"f126e66412cd4ad9aeea35ee425129a8","timestamp":"2026-11-14T19:33:49.158075+00:00"}
+{"status":"ok","service":"singing-service","version":"0.3.0","checks":{"ffmpeg":{"ok":true,"version":"7.1.5-0+deb13u1"},"librosa":{"ok":true,"version":"1.0.0"},"models_loaded":{"ok":true},"disk_space_mb":945681},"request_id":"1179d2d633aa4d15a6ec751ef01f2c2c","timestamp":"2026-11-15T19:40:29.222900+00:00"}
 ```
 
 - **Response 503** si falta FFmpeg o librosa no carga (ver §9).
 - **curl:** `curl http://localhost:5000/health`
 
-### GET /ready y GET /version — no implementados en v0.2.0
+### GET /ready
 
-Verificado empíricamente: ambos devuelven **404 Not Found**.
+- **Descripción:** readiness para K8s/Docker; distinto de `/health` (liveness).
+- **URL:** `GET http://singing-service:5000/ready`
+- **Response 200** (real):
 
-```bash
-curl -s -w "\nHTTP=%{http_code}\n" http://localhost:5000/version
-# {"detail":"Not Found","request_id":"c120dc2c2ece4b6f8af99493d646b244"}
-# HTTP=404
-
-curl -s -w "\nHTTP=%{http_code}\n" http://localhost:5000/ready
-# {"detail":"Not Found","request_id":"f6459a9d8c544bf1b58ed380c409e6a6"}
-# HTTP=404
+```json
+{"ready":true,"reason":null,"request_id":"bbad70aa396342e18d128fc66c36b64e"}
 ```
 
-Están propuestos como *hardening* (junto con `X-Request-ID`, que es **P0-01** en la
-auditoría); no forman parte del contrato v0.2.0. Ver `AUDITORIA_v0.2.0.md` §Bugs.
+- **Response 503** con `reason`: `warmup` (arranque), `shutting_down` (SIGTERM) o
+  `ffmpeg_unavailable`.
+- **curl:** `curl http://localhost:5000/ready`
+
+### GET /version
+
+- **Descripción:** metadatos de versión y build (debug).
+- **URL:** `GET http://singing-service:5000/version`
+- **Response 200** (real):
+
+```json
+{"version":"0.3.0","git_sha":"abc1234","build_time":"2026-11-15T12:00:00Z","python":"3.14.6","ffmpeg":"7.1.5-0+deb13u1","fastapi":"0.142.2","librosa":"1.0.0","request_id":"5ec99b15ffe14d359cefd91c6b2ba045"}
+```
+
+- **Header `X-Request-ID`:** se refleja; ejemplo:
+
+```bash
+curl -H "X-Request-ID: test-123" http://localhost:5000/version
+```
+
+- `git_sha`/`build_time` vienen de `GIT_SHA`/`BUILD_TIME` inyectados en build; si
+  faltan, `"unknown"`.
 
 ## 4. Formatos de audio soportados
 

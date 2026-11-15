@@ -12,6 +12,11 @@ COPY requirements.txt .
 RUN python -m pip install --prefix=/install -r requirements.txt
 
 FROM python:3.14.6-slim
+# Metadatos de build (HU-S1-02): se exponen en GET /version.
+ARG GIT_SHA=unknown
+ARG BUILD_TIME=unknown
+ENV GIT_SHA=${GIT_SHA} \
+    BUILD_TIME=${BUILD_TIME}
 # FFmpeg: conversión/estándar de audio (m4a/mp3/video -> wav) — Sprint 2+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg \

@@ -32,7 +32,7 @@ singing-service/
 │   │   ├── rhythm_eval.py       # stub (diferido a Sprint 1)
 │   │   └── align.py             # FastDTW (reservado para Sprint 1; no en la ruta)
 │   └── mock/data.py             # fixture con valores de Figma (no expuesto por API)
-├── tests/                       # 82 tests de servicio (+1 de integración)
+├── tests/                       # 91 tests de servicio (+1 de integración)
 ├── integration/                 # simulador Celery, matriz de errores, fixtures, verify
 └── docs/                        # contrato, arquitectura, backlog, troubleshooting
 ```
@@ -106,11 +106,27 @@ Pasos:
 
 - **Python 3.14.6** — local venv y Docker (`python:3.14.6-slim`). Librerías
   pinneadas: librosa 1.0.0, numba 0.68.0, scipy 1.18.1, numpy 2.5.3.
-  Ambas suites: **83 tests, 97 %**; sin diferencias conocidas.
+  Ambas suites: **92 tests, 97 %**; sin diferencias conocidas.
 - **FFmpeg** (sistema/Docker): decodificación y normalización de audio.
 - **librosa**, **soundfile**, **numpy**, **scipy**: pitch y análisis.
 - **numba/llvmlite**: JIT de pyin (causa el arranque frío).
 - **FastAPI**, **Uvicorn**, **Pydantic**, **python-multipart**.
+
+## 6.1 Configuración de build (`GIT_SHA`, `BUILD_TIME`)
+
+El Dockerfile final declara `ARG GIT_SHA=unknown` / `ARG BUILD_TIME=unknown` y los
+exporta como `ENV`; `docker-compose.yml` los pasa como `build.args`. Se exponen en
+`GET /version` para debug.
+
+```bash
+# Linux/macOS
+GIT_SHA=$(git rev-parse --short HEAD) BUILD_TIME=$(date -Iseconds) docker compose build
+
+# Windows PowerShell
+$env:GIT_SHA = (git rev-parse --short HEAD); $env:BUILD_TIME = (Get-Date -Format o); docker compose build
+```
+
+Si no se pasan, `/version` muestra `"unknown"` (no falla).
 
 ## 7. Riesgos conocidos
 

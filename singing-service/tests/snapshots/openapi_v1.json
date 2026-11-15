@@ -9,7 +9,7 @@
     "license": {
       "name": "Uso interno — SyncDance AI"
     },
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   "paths": {
     "/api/v1/analyze": {
@@ -216,8 +216,8 @@
         "tags": [
           "Salud"
         ],
-        "summary": "Health check con dependencias",
-        "description": "Estado del servicio y de sus dependencias (ffmpeg, librosa, modelos y disco). Devuelve **503 `degraded`** si falta FFmpeg o librosa no carga.",
+        "summary": "Liveness check con dependencias",
+        "description": "Liveness: estado del servicio y de sus dependencias (ffmpeg, librosa, modelos y disco). Devuelve **503 `degraded`** si falta FFmpeg o librosa no carga. Para readiness usa `/ready`.",
         "operationId": "health_health_get",
         "responses": {
           "200": {
@@ -228,7 +228,7 @@
                 "example": {
                   "status": "ok",
                   "service": "singing-service",
-                  "version": "0.2.0",
+                  "version": "0.3.0",
                   "checks": {
                     "ffmpeg": {
                       "ok": true,
@@ -236,7 +236,7 @@
                     },
                     "librosa": {
                       "ok": true,
-                      "version": "1.0.1"
+                      "version": "1.0.0"
                     },
                     "models_loaded": {
                       "ok": true
@@ -256,14 +256,14 @@
                 "example": {
                   "status": "degraded",
                   "service": "singing-service",
-                  "version": "0.2.0",
+                  "version": "0.3.0",
                   "checks": {
                     "ffmpeg": {
                       "ok": false
                     },
                     "librosa": {
                       "ok": true,
-                      "version": "1.0.1"
+                      "version": "1.0.0"
                     },
                     "models_loaded": {
                       "ok": true
@@ -272,6 +272,76 @@
                   },
                   "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e",
                   "timestamp": "2026-11-14T19:12:15.713759+00:00"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "tags": [
+          "Salud"
+        ],
+        "summary": "Readiness probe (K8s/Docker)",
+        "description": "Readiness: indica si el servicio puede atender tráfico. **200** cuando está listo; **503** durante `warmup`, tras `shutting_down` o si `ffmpeg_unavailable`. Diferente de `/health` (liveness).",
+        "operationId": "ready_ready_get",
+        "responses": {
+          "200": {
+            "description": "Listo para atender",
+            "content": {
+              "application/json": {
+                "schema": {},
+                "example": {
+                  "ready": true,
+                  "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No listo (warmup, shutting_down o ffmpeg_unavailable)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "ready": false,
+                  "reason": "warmup",
+                  "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/version": {
+      "get": {
+        "tags": [
+          "Sistema"
+        ],
+        "summary": "Metadatos de versión y build",
+        "description": "Versión del servicio, commit/build inyectados en la imagen (`GIT_SHA`, `BUILD_TIME`) y versiones de runtime (debug).",
+        "operationId": "version_version_get",
+        "responses": {
+          "200": {
+            "description": "Metadatos de versión",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Version Version Get"
+                },
+                "example": {
+                  "version": "0.3.0",
+                  "git_sha": "abc1234",
+                  "build_time": "2026-11-15T12:00:00Z",
+                  "python": "3.14.6",
+                  "ffmpeg": "7.1.5",
+                  "fastapi": "0.142.2",
+                  "librosa": "1.0.0",
+                  "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e"
                 }
               }
             }
