@@ -21,16 +21,26 @@ versionado [SemVer](https://semver.org/lang/es/).
 - `pitch_contour` opcional (`include_contour=true`, HU-S1-09): downsample a ~10 Hz
   (`step=3` con hop 32 ms → 96 ms, ~10.42 Hz), máximo 6000 puntos; `student` y
   `reference` con `t`, `f0`, `note`, `voiced`. Aditivo; `null` por defecto.
-- `tests/test_hu_s1_05.py` (8 tests) y `tests/test_hu_s1_09.py` (7 tests);
-  total **130 por defecto + 3 integración (133)**.
+- `tests/test_hu_s1_05.py` (8), `tests/test_hu_s1_09.py` (7) y
+  `tests/test_hu_s2_xx.py` (8); total **138 por defecto + 3 integración (141)**.
 - `ANALYSIS_TIMEOUT` (504) documentado en OpenAPI (`responses` de `/analyze`).
+
+### Mejorado
+
+- Latencia de `rhythm_eval` (HU-S2-XX): medición real en Docker (MASTmelody 4.78 s
+  → ~8–19 ms; 60 s de pulsos 120 BPM → ~45–69 ms estable). Warm-up de ritmo con
+  pulsos 120 BPM: el primer request con onsets baja de ~4.0 s a **~0.26 s**. Cache
+  en memoria por hash de audio (`app/services/rhythm_cache.py`, TTL 1 h, máx. 128)
+  → segunda llamada **~0 ms**. B/C (hop 1024, downsample 11–12 kHz) rechazadas por
+  desviar el tempo >2 BPM.
 
 ### Documentación
 
 - `docs/celery-contract.md` §3 (timeouts internos), §5 (504 `ANALYSIS_TIMEOUT`) y
   §2/§4 (`include_contour`/`pitch_contour`); `docs/ARCHITECTURE.md`
   §1/§2/§3/§6/§6.3/§7; `docs/USAGE.md` (`/metrics`, tabla de errores y ejemplo de
-  `include_contour`); `docs/SPRINT2_BACKLOG.md` (HU-S1-05 ✅, HU-S1-09 ✅).
+  `include_contour`); `docs/SPRINT2_BACKLOG.md` (HU-S1-05 ✅, HU-S1-09 ✅,
+  HU-S2-XX ✅).
 
 ## [0.3.0] — 2026-11-16
 

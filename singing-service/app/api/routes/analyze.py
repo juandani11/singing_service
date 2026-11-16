@@ -16,7 +16,6 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import cast
 
-import librosa
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 
@@ -52,7 +51,7 @@ from app.services.preprocess import (
     preprocess_bytes,
     read_capped,
 )
-from app.services.rhythm_eval import analyze_rhythm
+from app.services.rhythm_cache import analyze_rhythm_file, rhythm_cache_key
 from app.services.scoring import compute_absolute_scores, compute_scores
 
 router = APIRouter(prefix="/api/v1", tags=["Análisis"])
@@ -481,17 +480,15 @@ async def analyze(
                     align_ms / 1000.0
                 )
 
-                rhythm_start = time.perf_counter()
-                rhythm_y, _ = await run_in_threadpool(
-                    librosa.load,
-                    str(student.path),
-                    sr=settings.sample_rate,
-                    mono=True,
+                rhythm_key = rhythm_cache_key(
+                    data, settings.sample_rate, tempo_bpm
                 )
+                rhythm_start = time.perf_counter()
                 rhythm = await run_in_threadpool(
-                    analyze_rhythm,
-                    rhythm_y,
-                    settings.sample_rate,
+                    analyze_rhythm_file,
+                    student.path,
+                    key=rhythm_key,
+                    sr=settings.sample_rate,
                     tempo_bpm_hint=tempo_bpm,
                 )
                 rhythm_ms = int((time.perf_counter() - rhythm_start) * 1000)

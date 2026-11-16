@@ -32,10 +32,11 @@ singing-service/
 │   │   ├── scoring.py           # scores 0–100
 │   │   ├── feedback.py          # códigos y mensajes (HU-46)
 │   │   ├── rhythm_eval.py       # tempo + onsets (HU-S1-01)
+│   │   ├── rhythm_cache.py      # cache en memoria del ritmo por hash (HU-S2-XX)
 │   │   ├── contour.py           # pitch_contour downsampleado ~10 Hz (HU-S1-09)
 │   │   └── align.py             # FastDTW cableado en comparative (HU-S1-04); fallback align_by_time
 │   └── mock/data.py             # fixture con valores de Figma (no expuesto por API)
-├── tests/                       # 123 tests por defecto + 3 de integración
+├── tests/                       # 138 tests por defecto + 3 de integración
 ├── integration/                 # simulador Celery, matriz de errores, fixtures, verify
 └── docs/                        # contrato, arquitectura, backlog, troubleshooting
 ```
@@ -110,8 +111,8 @@ Pasos:
 
 - **Python 3.14.6** — local venv y Docker (`python:3.14.6-slim`). Librerías
   pinneadas: librosa 1.0.0, numba 0.68.0, scipy 1.18.1, numpy 2.5.3.
-  Ambas suites: **126 tests (123 por defecto + 3 integración), 98 %**; Docker
-  123 + 1 passed + 2 skipped (fixtures MASTmelody).
+  Ambas suites: **141 tests (138 por defecto + 3 integración), 98 %**; Docker
+  138 + 1 passed + 2 skipped (fixtures MASTmelody).
 - **FFmpeg** (sistema/Docker): decodificación y normalización de audio.
 - **librosa**, **soundfile**, **numpy**, **scipy**: pitch y análisis.
 - **numba/llvmlite**: JIT de pyin (causa el arranque frío).
@@ -136,19 +137,20 @@ Si no se pasan, `/version` muestra `"unknown"` (no falla).
 
 ## 6.2 Configuración de warm-up (`SKIP_WARMUP` / `SKIP_WARMUP_BEAT`)
 
-El lifespan ejecuta dos warm-ups (sine 440 Hz, 0.5 s, en memoria):
+El lifespan ejecuta dos warm-ups (en memoria):
 
-1. `librosa.pyin` (HU-S1-03) → `checks.warmup`.
-2. `librosa.beat.beat_track` + `librosa.onset.onset_detect` (HU-S1-01) →
-   `checks.rhythm_warmup`; el JIT de `beat_track` cuesta ~1.8 s en Docker en frío
-   (el prototipo local aislado midió ~10 s; el warm-up de pyin ya calienta parte
-   de numba).
+1. `librosa.pyin` con un sine 440 Hz de 0.5 s (HU-S1-03) → `checks.warmup`.
+2. `librosa.beat.beat_track` + `librosa.onset.onset_detect` con un **tren de
+   pulsos a 120 BPM de 2 s** (HU-S1-01/HU-S2-XX) → `checks.rhythm_warmup`. El
+   pulso (no un sine) es clave: `onset_detect` solo compila la ruta de
+   peak-picking cuando hay onsets. Medido en Docker: warm-up ~5.5 s y el primer
+   `/analyze` con onsets baja de **~4.0 s a ~0.26 s** de `rhythm_ms`.
 
 `SKIP_WARMUP=true|1|yes|on` omite ambos (tests/entornos rápidos).
 `SKIP_WARMUP_BEAT=true|1|yes|on` omite solo el de ritmo (tests que mockean librosa).
-Por defecto se ejecutan; el startup completo queda en ~14 s (Docker: pyin ~9.4 s
-+ ritmo ~1.3 s; `/ready` a los ~14 s) y el primer `/analyze` no paga el JIT. Los logs son
-`warmup_completed`/`warmup_failed` y
+Por defecto se ejecutan; el startup completo queda en ~19 s (Docker: pyin ~9.4 s
++ ritmo ~5.5 s; `/ready` a los ~19 s) y el primer `/analyze` no paga el JIT de
+onsets. Los logs son `warmup_completed`/`warmup_failed` y
 `warmup_beat_track_completed`/`warmup_beat_track_failed`.
 
 ## 6.3 Configuración de timeouts internos (`PYIN_TIMEOUT_SECONDS`, `ALIGN_TIMEOUT_SECONDS`)
@@ -171,10 +173,15 @@ semáforo se libera al responder, así que un timeout no bloquea la cola.
 
 - **JIT frío de numba/llvmlite:** mitigado con warm-up extendido en lifespan
   (pyin + `beat_track`/`onset_detect`; HU-S1-01/HU-S1-03). Sine primer/segundo:
-  10 s → <2 s (ver `CIERRE_HU_S1_01.md`/`CIERRE_HU_S1_03.md`); el startup paga ~14 s.
-- **`beat_track` lento en audios reales:** con `hop=960` (60 ms) MASTmelody baja de
-  5.7 s a ~1.5 s en local; en Docker mide ~3.8 s (documentado). El downsample a 8 kHz
-  se probó y se descartó (rompía ruido/tempo).
+  10 s → <2 s (ver `CIERRE_HU_S1_01.md`/`CIERRE_HU_S1_03.md`); el startup paga
+  ~19 s (pyin ~9.4 s + warm-up de ritmo ~5.5 s).
+- **Latencia de `rhythm_eval` (HU-S2-XX, medida):** en Docker, MASTmelody 4.78 s
+  mide **~8–19 ms** y 60 s de pulsos 120 BPM **~45–69 ms** en régimen estable. El
+  warm-up de ritmo usa pulsos 120 BPM (no sine) para compilar peak-picking: el
+  primer request con onsets baja de **~4.0 s a ~0.26 s**. Cache en memoria por
+  hash (TTL 1 h) → segunda llamada ~0 ms; no persiste entre reinicios. B (hop
+  1024) y C (downsample 11–12 kHz) se rechazaron por desviar el tempo >2 BPM; el
+  downsample a 8 kHz ya se había descartado en HU-S1-01.
 - **CPU-bound:** pyin/FFmpeg consumen CPU; escalar horizontalmente (réplicas/HPA) y
   mantener el semáforo para no saturar.
 - **Imagen Docker ~1.6 GB** (aceptable; revisar si crece con CREPE/GPU).

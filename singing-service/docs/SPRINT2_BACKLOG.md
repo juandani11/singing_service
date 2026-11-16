@@ -54,11 +54,20 @@ Prometheus y cerrar deuda de calidad antes del tag `v0.4.0`.
 - **Descripción:** benchmark en 3 audios y decisión pyin vs CREPE.
 - **Esfuerzo:** M.
 
-### HU-S2-XX — Optimizar `rhythm_eval` (latencia) (pendiente)
+### HU-S2-XX — Optimizar `rhythm_eval` (latencia) — ✅ Ejecutada (v0.4.0-dev)
 
-- **Descripción:** reducir los ~3.8 s de `beat_track` + `onset_detect` en Docker
-  (downsample selectivo, cache por hash o `n_fft` menor con validación).
-- **Criterios:** MASTmelody < 2 s; audio 60 s < 20 s; tempo ±2 BPM.
+- **Descripción:** reducir la latencia de `beat_track` + `onset_detect` con
+  medición previa (cache por hash, hop 1024 y downsample selectivo).
+- **Resultado medido (Docker):** MASTmelody 4.78 s → ~8–19 ms; 60 s de pulsos
+  120 BPM → ~45–69 ms estable; primer request ~4.0 s por JIT de onsets **antes**
+  del warm-up de pulsos y ~0.26 s después. El SLO <2 s ya se cumplía en régimen
+  estable; no había margen para una mejora 3x real de cómputo.
+- **Decisión:** se implementó **A (cache por hash de audio)**: segunda llamada
+  ~0 ms, precisión exacta. **D (hallazgo):** el warm-up de sine no compilaba la
+  ruta de onsets; se cambió a un tren de pulsos 120 BPM y el primer request bajó
+  de ~4.0 s a ~0.26 s. **B (hop 1024)** y **C (11–12 kHz)** se rechazaron por
+  desviar `estimated_tempo_bpm` >2 BPM. B+C también falló (tempo y onsets).
+- **Tests:** `tests/test_hu_s2_xx.py` (8).
 - **Esfuerzo:** M.
 
 ### HU-S4-01 — Recalibrar `scores.estabilidad` (pendiente, Sprint 4)
@@ -69,4 +78,4 @@ Prometheus y cerrar deuda de calidad antes del tag `v0.4.0`.
 
 ## Pendientes reales
 
-HU-S1-07, HU-S1-08, HU-S1-10, HU-S2-XX y HU-S4-01.
+HU-S1-07, HU-S1-08, HU-S1-10 y HU-S4-01.

@@ -96,11 +96,16 @@ httpx.Timeout(connect=5.0, read=300.0)
 > Si el Core usa `read < 300 s`, va a cortar audios largos (el servicio seguirá
 > procesando y el resultado quedará huérfano hasta el TTL de 1 h).
 
-> **Nota latencia `rhythm_eval`.** `rhythm_eval` (`beat_track` + `onset_detect`)
-> añade ~3.8 s en un audio de 4.8 s (~0.79x real-time). Para 5 min → ~4 min. El
-> warm-up mitiga el JIT frío, no el coste computacional. Core: timeout del worker
-> ≥ 300 s (ya documentado). Optimización planificada en Sprint 2
-> (HU-S2-XX: downsample selectivo o cache por hash de audio).
+> **Nota latencia `rhythm_eval` (HU-S2-XX, medida).** En Docker (16 kHz, beat
+> hop 960, onset hop 512): MASTmelody 4.78 s → **~8–19 ms**; 60 s de pulsos
+> 120 BPM → **~45–69 ms** en régimen estable. El warm-up de ritmo ahora usa un
+> **tren de pulsos 120 BPM** (no un sine) para compilar la ruta de peak-picking:
+> el primer request tras arrancar baja de **~4.0 s a ~0.26 s**. El SLO <2 s se
+> cumple con margen. Se añadió un **cache en memoria por hash de audio** (TTL 1 h):
+> la segunda llamada con el mismo audio y `tempo_bpm` es **~0 ms**. No persiste
+> entre reinicios (Redis en Sprint 3+). Las variantes B/C (hop 1024, downsample
+> 11–12 kHz) se rechazaron por desviar el tempo >2 BPM. Core: mantener
+> `read=300 s`.
 
 > **Timeouts internos (HU-S1-05).** Además del timeout del cliente, el servicio
 > protege su worker con timeouts configurables: `PYIN_TIMEOUT_SECONDS` (default

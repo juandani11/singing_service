@@ -33,6 +33,7 @@ from app.middleware.request_id import (
     get_request_id,
 )
 from app.services.preprocess import ffmpeg_version
+from app.services.rhythm_eval import _BEAT_HOP, _ONSET_HOP
 
 # RNF-03: eventos estructurados de `singing.*` en stdout (una línea JSON)
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -173,10 +174,11 @@ def _warmup() -> None:
 
 
 def _warmup_beat_track() -> None:
-    """Fuerza el JIT de `beat_track`/`onset_detect` (HU-S1-01).
+    """Fuerza el JIT de `beat_track`/`onset_detect` (HU-S1-01/HU-S2-XX).
 
-    `beat_track` compila numba en el primer uso (~10 s); sin este warm-up el
-    primer `/analyze` pagaría ese coste aunque el pyin ya esté caliente.
+    Se usa un tren de pulsos a 120 BPM, no un sine: `onset_detect` solo compila
+    la ruta de peak-picking cuando hay onsets reales. Sin esto, el primer
+    `/analyze` con onsets pagaba ~4 s de JIT (medido en HU-S2-XX).
     """
     started = time.perf_counter()
     try:
@@ -184,13 +186,16 @@ def _warmup_beat_track() -> None:
         import numpy as np
 
         sr = settings.sample_rate
-        t = np.arange(int(0.5 * sr)) / sr
-        y = (0.3 * np.sin(2 * np.pi * 440.0 * t)).astype(np.float32)
-        librosa.beat.beat_track(y=y, sr=sr, hop_length=settings.hop_length)
+        t = np.arange(int(2.0 * sr)) / sr
+        phase = np.mod(t, 60.0 / 120.0)
+        y = np.where(
+            phase < 0.04, 0.3 * np.sin(2 * np.pi * 440.0 * t), 0.0
+        ).astype(np.float32)
+        librosa.beat.beat_track(y=y, sr=sr, hop_length=_BEAT_HOP)
         librosa.onset.onset_detect(
             y=y,
             sr=sr,
-            hop_length=settings.hop_length,
+            hop_length=_ONSET_HOP,
             units="time",
             wait=5,
         )
