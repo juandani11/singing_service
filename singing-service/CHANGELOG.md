@@ -34,6 +34,12 @@ versionado [SemVer](https://semver.org/lang/es/).
   → segunda llamada **~0 ms**. B/C (hop 1024, downsample 11–12 kHz) rechazadas por
   desviar el tempo >2 BPM.
 
+### Mantenimiento
+
+- Migrado `TestClient` de `httpx` a `httpx2==2.16.2` (HU-S1-08):
+  `requirements.txt` y `tests/test_preprocess.py`. `pytest -v` queda sin
+  `StarletteDeprecationWarning`.
+
 ### Documentación
 
 - `docs/celery-contract.md` §3 (timeouts internos), §5 (504 `ANALYSIS_TIMEOUT`) y

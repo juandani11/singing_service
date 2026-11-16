@@ -33,10 +33,13 @@ Prometheus y cerrar deuda de calidad antes del tag `v0.4.0`.
 - **Criterios:** CHANGELOG sin `-dev`; `verify_handoff.sh` OK; tag annotated.
 - **Esfuerzo:** S
 
-### HU-S1-08 — Migrar TestClient a httpx2 (pendiente)
+### HU-S1-08 — Migrar TestClient a httpx2 — ✅ Ejecutada (v0.4.0-dev)
 
 - **Descripción:** eliminar `StarletteDeprecationWarning` migrando a `httpx2`
   cuando la versión estable lo requiera.
+- **Ejecución:** `httpx2==2.16.2` en `requirements.txt` y
+  `tests/test_preprocess.py` (`from httpx2 import Response`). `pytest -v` sin
+  `StarletteDeprecationWarning`.
 - **Criterio:** 0 warnings en `pytest -v`.
 - **Esfuerzo:** S. **Prioridad:** P2.
 
@@ -78,4 +81,4 @@ Prometheus y cerrar deuda de calidad antes del tag `v0.4.0`.
 
 ## Pendientes reales
 
-HU-S1-07, HU-S1-08, HU-S1-10 y HU-S4-01.
+HU-S1-07, HU-S1-10 y HU-S4-01.
