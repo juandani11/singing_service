@@ -25,8 +25,10 @@ versionado [SemVer](https://semver.org/lang/es/).
 - Campos aditivos: `scores.ritmo`, `metrics.estimated_tempo_bpm`,
   `metrics.onset_count`, `metrics.onset_stability`, `metrics.tempo_deviation_bpm`,
   `timings.rhythm_ms`, `tempo_bpm` (form).
+- Tests de integración (`@pytest.mark.integration`) para MASTmelody y worker 5xx;
+  `pytest` por defecto 111; `pytest -m integration` 2 (local) / 1+1 skipped (Docker).
 - `tests/test_hu_s1_02.py` (9), `tests/test_hu_s1_03.py` (8) y
-  `tests/test_hu_s1_01.py` (13); total 113.
+  `tests/test_hu_s1_01.py` (13); total 111 por defecto + 2 integración (113).
 
 ### Cambiado
 
@@ -36,9 +38,11 @@ versionado [SemVer](https://semver.org/lang/es/).
 
 ### Documentación
 
-- `docs/celery-contract.md` §2 (`tempo_bpm`), §3 (JIT/startup), §4 (ritmo aditivo)
-  y §4.1; `docs/USAGE.md`; `docs/ARCHITECTURE.md` §6.1, §6.2 y §7;
-  `Docs/scoring.md` §Ritmo y §Feedback.
+- `docs/celery-contract.md` §2 (`tempo_bpm`), §3 (JIT/startup y nota de latencia
+  `rhythm_eval`), §4 (ritmo aditivo) y §4.1; `docs/USAGE.md`;
+  `docs/ARCHITECTURE.md` §6.1, §6.2 y §7; `Docs/scoring.md` §Ritmo y §Feedback;
+  `docs/SPRINT1_BACKLOG.md` HU-S2-XX (optimizar latencia de ritmo);
+  `CIERRE_HU_S1_01.md` §Limitaciones conocidas.
 
 ## [Unreleased]
 

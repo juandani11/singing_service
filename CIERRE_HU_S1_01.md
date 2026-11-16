@@ -121,7 +121,16 @@ Tercero (comparative): **wall 654 ms**.
   Se mantiene 16 kHz con hop 960.
 - El guard de 100 ms elimina el onset artificial del inicio: sine 440 → `onset_count=0`.
 
-## 7. Confirmaciones
+## 7. Limitaciones conocidas
+
+`rhythm_eval` (`beat_track` + `onset_detect`) añade **~3.8 s en un audio de 4.8 s**
+(~0.79x real-time; medido: MASTmelody wall 4142 ms, `rhythm_ms=3791`). Para 5 min
+→ ~4 min. El warm-up mitiga el JIT frío, **no** el coste computacional. Core:
+timeout del worker ≥ 300 s (ya documentado). Optimización planificada en Sprint 2
+(**HU-S2-XX**: downsample selectivo o cache por hash de audio). El downsample a
+8 kHz se probó y se descartó (rompía ruido/tempo); se mantiene 16 kHz/hop 960.
+
+## 8. Confirmaciones
 
 - **113 tests locales** (100 previos + 13 nuevos); Docker **112 passed, 1 skipped**
   (fixture MASTmelody no copiado en la imagen; el test lo detecta y salta).

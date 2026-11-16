@@ -32,7 +32,7 @@ singing-service/
 │   │   ├── rhythm_eval.py       # stub (diferido a Sprint 1)
 │   │   └── align.py             # FastDTW (reservado para Sprint 1; no en la ruta)
 │   └── mock/data.py             # fixture con valores de Figma (no expuesto por API)
-├── tests/                       # 112 tests de servicio (+1 de integración)
+├── tests/                       # 111 tests por defecto + 2 de integración
 ├── integration/                 # simulador Celery, matriz de errores, fixtures, verify
 └── docs/                        # contrato, arquitectura, backlog, troubleshooting
 ```
@@ -106,7 +106,8 @@ Pasos:
 
 - **Python 3.14.6** — local venv y Docker (`python:3.14.6-slim`). Librerías
   pinneadas: librosa 1.0.0, numba 0.68.0, scipy 1.18.1, numpy 2.5.3.
-  Ambas suites: **113 tests, 98 %**; sin diferencias conocidas.
+  Ambas suites: **113 tests (111 por defecto + 2 integración), 98 %**; Docker
+  111 + 1 passed + 1 skipped (fixture MASTmelody).
 - **FFmpeg** (sistema/Docker): decodificación y normalización de audio.
 - **librosa**, **soundfile**, **numpy**, **scipy**: pitch y análisis.
 - **numba/llvmlite**: JIT de pyin (causa el arranque frío).

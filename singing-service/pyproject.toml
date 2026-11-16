@@ -1,6 +1,9 @@
 [tool.pytest.ini_options]
 testpaths = ["tests", "integration"]
-addopts = "-q --cov=app.core --cov=app.main --cov-report=term-missing"
+addopts = "-q -m 'not integration' --cov=app.core --cov=app.main --cov-report=term-missing"
+markers = [
+    "integration: requiere fixture local o servidor/mock de integración; excluido por defecto (usar pytest -m integration)",
+]
 
 [tool.coverage.run]
 source = ["app"]

@@ -78,6 +78,20 @@ métricas comparativas más ricas, preparado para integrar con el Core en produc
 - **Esfuerzo:** S
 - **Prioridad:** P2 (mantenimiento, no bloquea)
 
+### HU-S2-XX — Optimizar `rhythm_eval` (latencia)
+
+- **Contexto:** `beat_track` + `onset_detect` añaden ~3.8 s para 4.8 s de audio
+  (~0.79x real-time). Para 5 min → ~4 min. Rompe el SLO <2 s para audios largos.
+- **Causa:** análisis espectral sobre 16 kHz, hop 960. Downsample 8 kHz rompía
+  ruido/tempo (descartado en HU-S1-01).
+- **Opciones a evaluar:** (a) downsample selectivo solo para rhythm (mantener
+  16 kHz para pitch); (b) cache por hash de audio; (c) reducir `hop_length` o
+  `n_fft` con validación de precisión.
+- **Criterios de aceptación:** MASTmelody (4.8 s) <2 s; audio 60 s <20 s;
+  precisión de tempo mantenida (±2 BPM vs baseline).
+- **Esfuerzo:** M.
+- **Sprint objetivo:** 2.
+
 ## Deuda técnica (Sprint 4)
 
 ### HU-S4-01 — Recalibrar `scores.estabilidad` con datos reales

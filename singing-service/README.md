@@ -44,4 +44,4 @@ FastAPI (≥0.115), Uvicorn, librosa, ffmpeg-python, soundfile, numpy, scipy.
 
 ## Calidad
 
-**113 tests**, **98 % de cobertura**, `ruff` OK. `verify_handoff.sh` → `HANDOFF OK`.
+**111 tests por defecto + 2 de integración** (113 total; Docker 111 + 1 passed + 1 skipped), **98 % de cobertura**, `ruff` OK. `verify_handoff.sh` → `HANDOFF OK`.

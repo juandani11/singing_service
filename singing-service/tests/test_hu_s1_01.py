@@ -99,7 +99,12 @@ def test_absolute_pure_sine_has_no_rhythm() -> None:
     assert result.scores.ritmo is None
 
 
+@pytest.mark.integration
 def test_mastmelody_has_rhythm_accuracy() -> None:
+    """Requiere `integration/fixtures/mastmelody_per.m4a` (ignorado por `.gitignore`;
+    no se copia en la imagen Docker). Se excluye del run por defecto
+    (`-m 'not integration'`); ejecutar con `pytest -m integration` en local.
+    """
     if not MASTMELODY.exists():
         pytest.skip(f"falta {MASTMELODY} (la imagen Docker no copia fixtures)")
     accepted = _post(

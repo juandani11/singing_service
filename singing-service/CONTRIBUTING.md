@@ -6,7 +6,13 @@
 2. `cd singing-service`
 3. `docker compose up -d --build singing-service`
 4. `pip install -r requirements-dev.txt`
-5. `pytest -v` → **113 passed** (112 de servicio + 1 de integración).
+5. `pytest -v` → **111 passed** (2 de integración deseleccionados); `pytest -v -m integration` → **2** (local) / **1 passed + 1 skipped** (Docker).
+
+> **Tests de integración.** Los marcados `@pytest.mark.integration` (MASTmelody y
+> worker 5xx) se excluyen por defecto (`-m 'not integration'`); correr
+> `pytest -m integration`. MASTmelody requiere `integration/fixtures/mastmelody_per.m4a`
+> (ignorado por `.gitignore`; no se copia en Docker → `skip`). El worker 5xx
+> corre en local y Docker; `verify_handoff.sh` también lo cubre vía el script.
 
 ## Flujo de cambio
 

@@ -96,6 +96,12 @@ httpx.Timeout(connect=5.0, read=300.0)
 > Si el Core usa `read < 300 s`, va a cortar audios largos (el servicio seguirá
 > procesando y el resultado quedará huérfano hasta el TTL de 1 h).
 
+> **Nota latencia `rhythm_eval`.** `rhythm_eval` (`beat_track` + `onset_detect`)
+> añade ~3.8 s en un audio de 4.8 s (~0.79x real-time). Para 5 min → ~4 min. El
+> warm-up mitiga el JIT frío, no el coste computacional. Core: timeout del worker
+> ≥ 300 s (ya documentado). Optimización planificada en Sprint 2
+> (HU-S2-XX: downsample selectivo o cache por hash de audio).
+
 ## 4. Matriz de response por modo
 
 `GET /api/v1/analyze/{analysis_id}` → `200 AnalysisResult`.

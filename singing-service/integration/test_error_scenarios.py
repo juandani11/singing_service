@@ -24,6 +24,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import numpy as np
+import pytest
 import requests
 
 DEFAULT_URL = "http://localhost:5000/api/v1/analyze"
@@ -357,8 +358,14 @@ def main() -> int:
     return 0 if results.passed == results.total else 1
 
 
+@pytest.mark.integration
 def test_5xx_without_json_is_recoverable() -> None:
-    """El guard del worker trata un 5xx sin JSON como recuperable (sin KeyError)."""
+    """Test de integración del guard del worker (arranca un servidor HTTP local).
+
+    Se excluye del run por defecto (`-m 'not integration'`) porque es un test de
+    integración del worker, no del servicio; ejecutar con `pytest -m integration`
+    o mediante `integration/verify_handoff.sh` (que corre el `main` del script).
+    """
     action, reason = _check_5xx_without_json()
     assert action == "retry"
     assert reason is not None and "Non-JSON" in reason
