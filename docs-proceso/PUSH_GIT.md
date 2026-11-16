@@ -1,7 +1,9 @@
 # PUSH_GIT — publicación de `App-SyncDance` (v0.4.0)
 
 > Fecha: 2026-11-16 · Repo remoto: `https://github.com/juandani11/singing_service.git`
-> Rama publicada: `sprint2` (HEAD local `b562277`) · Tag de release: `v0.4.0` (`ddfe6ef`).
+> Rama publicada: `sprint2` · Tag de release: `v0.4.0` (`ddfe6ef`).
+> El commit de este reporte es posterior y avanza `sprint2`; el tag `v0.4.0`
+> sigue apuntando a `ddfe6ef`.
 
 ## 1. Estado local inicial
 
@@ -138,6 +140,9 @@ To https://github.com/juandani11/singing_service.git
 ```
 
 ## 6. Verificación remota (`ls-remote`)
+
+> Snapshot del push de release. El commit de este reporte avanza `sprint2`
+> después; el tag `v0.4.0` no se mueve.
 
 ```text
 $ git ls-remote --heads origin
