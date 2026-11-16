@@ -61,13 +61,15 @@ métricas comparativas más ricas, preparado para integrar con el Core en produc
   `average_cent_deviation` 153.9→92.9; offset 200 ms alineado (>80); tests.
 - **Esfuerzo:** M
 
-### HU-S1-05 — Timeout interno y métricas Prometheus
+### HU-S1-05 — Timeout interno y métricas Prometheus — ✅ Ejecutada (sprint2)
 
 - **Descripción:** el servicio no hace llamadas salientes al Core (es el Core quien
   llama al servicio). Protegerse de peticiones colgadas con timeout interno de
   pyin/FFmpeg y exponer latencia en `/metrics`.
 - **Criterios:** timeout configurable para pyin/comparación; `/metrics` con
   contadores de análisis y latencias (Prometheus); test de timeout.
+- **Ejecución:** `PYIN_TIMEOUT_SECONDS`/`ALIGN_TIMEOUT_SECONDS`, 504
+  `ANALYSIS_TIMEOUT`, `/metrics` (prometheus-client) y `tests/test_hu_s1_05.py`.
 - **Esfuerzo:** S
 
 ### HU-S1-06 — Warm-up (duplicada de HU-S1-03) — ✅ Ejecutada
@@ -107,9 +109,9 @@ métricas comparativas más ricas, preparado para integrar con el Core en produc
 
 ## Pendientes reales (Sprint 2)
 
-- HU-S1-05 (timeout/metrics), HU-S1-07 (tag 0.3.0), HU-S1-08 (httpx2),
-  HU-S1-09 (`pitch_contour`), HU-S1-10 (CREPE), HU-S2-XX (latencia ritmo),
-  HU-S4-01 (estabilidad).
+- HU-S1-07 (tag 0.4.0), HU-S1-08 (httpx2), HU-S1-09 (`pitch_contour`),
+  HU-S1-10 (CREPE), HU-S2-XX (latencia ritmo), HU-S4-01 (estabilidad).
+  HU-S1-05 completada en `sprint2` (ver `SPRINT2_BACKLOG.md`).
 
 ## Deuda técnica (Sprint 4)
 

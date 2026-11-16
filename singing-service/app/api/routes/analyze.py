@@ -6,11 +6,13 @@ notas JSON (`reference_notes`); comparación temporal simple (sin DTW).
 """
 
 import asyncio
+import functools
 import logging
 import tempfile
 import threading
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import cast
 
@@ -21,6 +23,15 @@ from fastapi.concurrency import run_in_threadpool
 from app.core.config import settings
 from app.core.log import log_event
 from app.core.store import analysis_store
+from app.metrics import (
+    active_requests,
+    align_duration_seconds,
+    analysis_duration_seconds,
+    analysis_requests_total,
+    analysis_timeouts_total,
+    pitch_duration_seconds,
+    rhythm_duration_seconds,
+)
 from app.schemas.analyze import (
     AcceptedResponse,
     AnalysisMode,
@@ -52,6 +63,14 @@ _ALGORITHM_VERSION = "0.5.0-hybrid-modes"
 # threading.Semaphore vía to_thread: no bloquea el event loop mientras espera
 # y es seguro entre loops (uvicorn vs TestClient).
 _analysis_semaphore = threading.Semaphore(settings.max_concurrent_analyses)
+
+# HU-S1-05: executor dedicado para aplicar timeout real. `run_in_threadpool`
+# (anyio) ignora la cancelación hasta que el hilo termina; un Future de
+# `run_in_executor` sí se abandona al vencer `asyncio.wait_for`.
+_timeout_executor = ThreadPoolExecutor(
+    max_workers=max(4, settings.max_concurrent_analyses),
+    thread_name_prefix="analysis-timeout",
+)
 
 
 def _accepted(result: AnalysisResult) -> AcceptedResponse:
@@ -105,6 +124,45 @@ def _fail(attempt_id: str, code: str, message: str, status_code: int) -> HTTPExc
         status_code=status_code,
         detail={"code": code, "message": message},
     )
+
+
+async def _run_with_timeout(
+    func,
+    *args,
+    timeout: float,
+    phase: str,
+    attempt_id: str,
+    **kwargs,
+):
+    """Ejecuta `func` en un hilo y responde 504 `ANALYSIS_TIMEOUT` al vencer.
+
+    Limitación documentada: librosa/fastdtw no son interrumpibles. Al vencer el
+    timeout el request responde y el semáforo se libera, pero el hilo huérfano
+    sigue ejecutándose hasta terminar (el executor acota cuántos se acumulan).
+    """
+    loop = asyncio.get_running_loop()
+    future = loop.run_in_executor(
+        _timeout_executor, functools.partial(func, *args, **kwargs)
+    )
+    try:
+        return await asyncio.wait_for(future, timeout=timeout)
+    except TimeoutError:
+        future.cancel()
+        analysis_timeouts_total.labels(phase=phase).inc()
+        log_event(
+            logging.WARNING,
+            "analysis_timeout",
+            attempt_id=attempt_id,
+            phase=phase,
+            timeout_sec=timeout,
+        )
+        raise HTTPException(
+            status_code=504,
+            detail={
+                "code": "ANALYSIS_TIMEOUT",
+                "message": f"El análisis excedió el timeout en la fase '{phase}'",
+            },
+        ) from None
 
 
 @router.post(
@@ -227,6 +285,22 @@ curl -X POST http://localhost:5000/api/v1/analyze \\
                 "servicio está degradado."
             )
         },
+        504: {
+            "description": "Timeout interno de pyin o de la alineación (HU-S1-05)",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": {
+                            "code": "ANALYSIS_TIMEOUT",
+                            "message": (
+                                "El análisis excedió el timeout en la fase 'pyin'"
+                            ),
+                            "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e",
+                        }
+                    }
+                }
+            },
+        },
     },
 )
 async def analyze(
@@ -287,227 +361,266 @@ async def analyze(
     max_bytes = settings.max_file_mb * 1024 * 1024
     is_comparative = mode == "comparative"
 
-    acquired = await asyncio.to_thread(
-        _analysis_semaphore.acquire, True, settings.busy_timeout_sec
-    )
-    if not acquired:
-        raise _fail(
-            attempt_id,
-            "SERVICE_BUSY",
-            "Servicio saturado de análisis; reintenta en unos segundos",
-            429,
-        )
+    started = time.perf_counter()
+    status = "error"
+    active_requests.inc()
     try:
-        ensure_supported_extension(audio.filename)
-        data = await read_capped(audio, max_bytes)
-
-        reference_data = None
-        if is_comparative and reference_audio is not None:
-            ensure_supported_extension(reference_audio.filename)
-            reference_data = await read_capped(reference_audio, max_bytes)
-
-        preprocess_start = time.perf_counter()
-        with tempfile.TemporaryDirectory(prefix="syncdance-") as tmp:
-            tmp_dir = Path(tmp)
-            student = await run_in_threadpool(
-                preprocess_bytes, data, audio.filename, tmp_dir=tmp_dir, name="student"
+        acquired = await asyncio.to_thread(
+            _analysis_semaphore.acquire, True, settings.busy_timeout_sec
+        )
+        if not acquired:
+            raise _fail(
+                attempt_id,
+                "SERVICE_BUSY",
+                "Servicio saturado de análisis; reintenta en unos segundos",
+                429,
             )
+        try:
+            ensure_supported_extension(audio.filename)
+            data = await read_capped(audio, max_bytes)
 
-            reference = None
-            reference_notes_points = None
-            if reference_data is not None:
-                reference = await run_in_threadpool(
-                    preprocess_bytes,
-                    reference_data,
-                    reference_audio.filename,
-                    tmp_dir=tmp_dir,
-                    name="reference",
+            reference_data = None
+            if is_comparative and reference_audio is not None:
+                ensure_supported_extension(reference_audio.filename)
+                reference_data = await read_capped(reference_audio, max_bytes)
+
+            preprocess_start = time.perf_counter()
+            with tempfile.TemporaryDirectory(prefix="syncdance-") as tmp:
+                tmp_dir = Path(tmp)
+                student = await run_in_threadpool(
+                    preprocess_bytes, data, audio.filename, tmp_dir=tmp_dir, name="student"
                 )
-            elif is_comparative and reference_notes:
-                try:
-                    reference_notes_points = parse_reference_notes(reference_notes)
-                except ValueError as exc:
-                    raise PreprocessError(
-                        "INVALID_REFERENCE_NOTES", str(exc), 400
-                    ) from exc
-            preprocess_ms = int((time.perf_counter() - preprocess_start) * 1000)
 
-            pitch_start = time.perf_counter()
-            student_pitch = await run_in_threadpool(
-                extract_pitch, student.path, hop_length=settings.hop_length
-            )
-            reference_pitch = None
-            if reference is not None:
-                reference_pitch = await run_in_threadpool(
-                    extract_pitch, reference.path, hop_length=settings.hop_length
-                )
-            pitch_ms = int((time.perf_counter() - pitch_start) * 1000)
-
-            compare_start = time.perf_counter()
-            reference_points = (
-                reference_pitch.points
-                if reference_pitch is not None
-                else reference_notes_points
-            )
-            alignment_method = "time"
-            if is_comparative and reference_points:
-                try:
-                    aligned = align_frames(student_pitch.points, reference_points)
-                    alignment_method = "fastdtw"
-                except Exception as exc:
-                    log_event(
-                        logging.WARNING,
-                        "align_fastdtw_failed",
-                        error=f"{type(exc).__name__}: {exc}",
+                reference = None
+                reference_notes_points = None
+                if reference_data is not None:
+                    reference = await run_in_threadpool(
+                        preprocess_bytes,
+                        reference_data,
+                        reference_audio.filename,
+                        tmp_dir=tmp_dir,
+                        name="reference",
                     )
-                    tolerance = max(hop_ms / 1000.0 * 2.0, 0.1)
-                    aligned = align_by_time(
-                        student_pitch.points,
-                        reference_points,
-                        tolerance_sec=tolerance,
-                    )
-            else:
-                aligned = [
-                    ComparedFrame(cents=None, ref_f0=None)
-                    for _ in student_pitch.points
-                ]
-            align_ms = int((time.perf_counter() - compare_start) * 1000)
-            dtw_ms = align_ms
+                elif is_comparative and reference_notes:
+                    try:
+                        reference_notes_points = parse_reference_notes(reference_notes)
+                    except ValueError as exc:
+                        raise PreprocessError(
+                            "INVALID_REFERENCE_NOTES", str(exc), 400
+                        ) from exc
+                preprocess_ms = int((time.perf_counter() - preprocess_start) * 1000)
 
-            rhythm_start = time.perf_counter()
-            rhythm_y, _ = await run_in_threadpool(
-                librosa.load,
-                str(student.path),
-                sr=settings.sample_rate,
-                mono=True,
-            )
-            rhythm = await run_in_threadpool(
-                analyze_rhythm,
-                rhythm_y,
-                settings.sample_rate,
-                tempo_bpm_hint=tempo_bpm,
-            )
-            rhythm_ms = int((time.perf_counter() - rhythm_start) * 1000)
-
-            scoring_start = time.perf_counter()
-            segments = build_segments(
-                student_pitch.points,
-                aligned,
-                hop_ms=hop_ms,
-                duration_sec=student.duration_sec,
-                cent_threshold=settings.cent_threshold,
-            )
-            if rhythm.feedback_items:
-                segments = sorted(
-                    [
-                        *segments,
-                        *(Segment(**item) for item in rhythm.feedback_items),
-                    ],
-                    key=lambda segment: segment.start,
+                pitch_start = time.perf_counter()
+                student_pitch = await _run_with_timeout(
+                    extract_pitch,
+                    student.path,
+                    timeout=settings.pyin_timeout_seconds,
+                    phase="pyin",
+                    attempt_id=attempt_id,
+                    hop_length=settings.hop_length,
                 )
-            if is_comparative:
-                metrics = comparative_metrics(
+                reference_pitch = None
+                if reference is not None:
+                    reference_pitch = await _run_with_timeout(
+                        extract_pitch,
+                        reference.path,
+                        timeout=settings.pyin_timeout_seconds,
+                        phase="pyin",
+                        attempt_id=attempt_id,
+                        hop_length=settings.hop_length,
+                    )
+                pitch_ms = int((time.perf_counter() - pitch_start) * 1000)
+                pitch_duration_seconds.observe(pitch_ms / 1000.0)
+
+                compare_start = time.perf_counter()
+                reference_points = (
+                    reference_pitch.points
+                    if reference_pitch is not None
+                    else reference_notes_points
+                )
+                alignment_method = "time"
+                if is_comparative and reference_points:
+                    try:
+                        aligned = await _run_with_timeout(
+                            align_frames,
+                            student_pitch.points,
+                            reference_points,
+                            timeout=settings.align_timeout_seconds,
+                            phase="align",
+                            attempt_id=attempt_id,
+                        )
+                        alignment_method = "fastdtw"
+                    except HTTPException:
+                        # Timeout de alineación: 504, no fallback silencioso.
+                        raise
+                    except Exception as exc:
+                        log_event(
+                            logging.WARNING,
+                            "align_fastdtw_failed",
+                            error=f"{type(exc).__name__}: {exc}",
+                        )
+                        tolerance = max(hop_ms / 1000.0 * 2.0, 0.1)
+                        aligned = align_by_time(
+                            student_pitch.points,
+                            reference_points,
+                            tolerance_sec=tolerance,
+                        )
+                else:
+                    aligned = [
+                        ComparedFrame(cents=None, ref_f0=None)
+                        for _ in student_pitch.points
+                    ]
+                align_ms = int((time.perf_counter() - compare_start) * 1000)
+                dtw_ms = align_ms
+                align_duration_seconds.labels(method=alignment_method).observe(
+                    align_ms / 1000.0
+                )
+
+                rhythm_start = time.perf_counter()
+                rhythm_y, _ = await run_in_threadpool(
+                    librosa.load,
+                    str(student.path),
+                    sr=settings.sample_rate,
+                    mono=True,
+                )
+                rhythm = await run_in_threadpool(
+                    analyze_rhythm,
+                    rhythm_y,
+                    settings.sample_rate,
+                    tempo_bpm_hint=tempo_bpm,
+                )
+                rhythm_ms = int((time.perf_counter() - rhythm_start) * 1000)
+                rhythm_duration_seconds.observe(rhythm_ms / 1000.0)
+
+                scoring_start = time.perf_counter()
+                segments = build_segments(
                     student_pitch.points,
                     aligned,
-                    cent_threshold=settings.cent_threshold,
-                )
-                scores = await run_in_threadpool(
-                    compute_scores,
-                    cents=[f.cents for f in aligned],
-                    points=student_pitch.points,
-                    silence_pct=student_pitch.silence_pct,
-                    student_wav=student.path,
-                    hop_length=settings.hop_length,
-                    sample_rate=settings.sample_rate,
-                    cent_threshold=settings.cent_threshold,
-                )
-                feedback = build_feedback(segments, duration_sec=student.duration_sec)
-            else:
-                metrics = absolute_metrics(student_pitch.points)
-                scores = await run_in_threadpool(
-                    compute_absolute_scores,
-                    points=student_pitch.points,
-                    silence_pct=student_pitch.silence_pct,
-                    student_wav=student.path,
-                    hop_length=settings.hop_length,
-                    sample_rate=settings.sample_rate,
-                    cent_threshold=settings.cent_threshold,
-                )
-                feedback = build_absolute_feedback(
-                    student_pitch.points,
-                    segments=segments,
-                    stability_cents=metrics.pitch_stability_cents,
+                    hop_ms=hop_ms,
                     duration_sec=student.duration_sec,
+                    cent_threshold=settings.cent_threshold,
                 )
-            metrics = metrics.model_copy(
-                update={
-                    "rhythm_accuracy": rhythm.rhythm_accuracy,
-                    "estimated_tempo_bpm": rhythm.estimated_tempo_bpm,
-                    "onset_count": rhythm.onset_count,
-                    "onset_stability": rhythm.onset_stability,
-                    "tempo_deviation_bpm": rhythm.tempo_deviation_bpm,
-                    "alignment_method": alignment_method,
-                }
-            )
-            scores = scores.model_copy(
-                update={
-                    "ritmo": (
-                        int(round(rhythm.rhythm_accuracy))
-                        if rhythm.rhythm_accuracy is not None
-                        else None
+                if rhythm.feedback_items:
+                    segments = sorted(
+                        [
+                            *segments,
+                            *(Segment(**item) for item in rhythm.feedback_items),
+                        ],
+                        key=lambda segment: segment.start,
                     )
-                }
+                if is_comparative:
+                    metrics = comparative_metrics(
+                        student_pitch.points,
+                        aligned,
+                        cent_threshold=settings.cent_threshold,
+                    )
+                    scores = await run_in_threadpool(
+                        compute_scores,
+                        cents=[f.cents for f in aligned],
+                        points=student_pitch.points,
+                        silence_pct=student_pitch.silence_pct,
+                        student_wav=student.path,
+                        hop_length=settings.hop_length,
+                        sample_rate=settings.sample_rate,
+                        cent_threshold=settings.cent_threshold,
+                    )
+                    feedback = build_feedback(
+                        segments, duration_sec=student.duration_sec
+                    )
+                else:
+                    metrics = absolute_metrics(student_pitch.points)
+                    scores = await run_in_threadpool(
+                        compute_absolute_scores,
+                        points=student_pitch.points,
+                        silence_pct=student_pitch.silence_pct,
+                        student_wav=student.path,
+                        hop_length=settings.hop_length,
+                        sample_rate=settings.sample_rate,
+                        cent_threshold=settings.cent_threshold,
+                    )
+                    feedback = build_absolute_feedback(
+                        student_pitch.points,
+                        segments=segments,
+                        stability_cents=metrics.pitch_stability_cents,
+                        duration_sec=student.duration_sec,
+                    )
+                metrics = metrics.model_copy(
+                    update={
+                        "rhythm_accuracy": rhythm.rhythm_accuracy,
+                        "estimated_tempo_bpm": rhythm.estimated_tempo_bpm,
+                        "onset_count": rhythm.onset_count,
+                        "onset_stability": rhythm.onset_stability,
+                        "tempo_deviation_bpm": rhythm.tempo_deviation_bpm,
+                        "alignment_method": alignment_method,
+                    }
+                )
+                scores = scores.model_copy(
+                    update={
+                        "ritmo": (
+                            int(round(rhythm.rhythm_accuracy))
+                            if rhythm.rhythm_accuracy is not None
+                            else None
+                        )
+                    }
+                )
+                scoring_ms = int((time.perf_counter() - scoring_start) * 1000)
+        except PreprocessError as exc:
+            raise _http_error(exc) from exc
+        except HTTPException as exc:
+            # Errores tipados que no dependen de FFmpeg (p. ej. AUDIO_TOO_LARGE)
+            code = exc.detail.get("code") if isinstance(exc.detail, dict) else None
+            log_event(
+                logging.WARNING,
+                "analysis_failed",
+                attempt_id=attempt_id,
+                code=code,
+                http_status=exc.status_code,
             )
-            scoring_ms = int((time.perf_counter() - scoring_start) * 1000)
-    except PreprocessError as exc:
-        raise _http_error(exc) from exc
-    except HTTPException as exc:
-        # Errores tipados que no dependen de FFmpeg (p. ej. AUDIO_TOO_LARGE)
-        code = exc.detail.get("code") if isinstance(exc.detail, dict) else None
-        log_event(
-            logging.WARNING,
-            "analysis_failed",
-            attempt_id=attempt_id,
-            code=code,
-            http_status=exc.status_code,
-        )
-        raise
-    finally:
-        _analysis_semaphore.release()
+            raise
+        finally:
+            _analysis_semaphore.release()
 
-    reference_curve = (
-        reference_pitch.points
-        if reference_pitch is not None
-        else reference_notes_points
-    )
-    return _accepted(
-        AnalysisResult(
-            analysis_id=uuid.uuid4().hex,
-            attempt_id=attempt_id,
-            routine_id=routine_id,
-            status="completed",
-            mode=cast(AnalysisMode, mode),
-            algorithm_version=_ALGORITHM_VERSION,
-            duration_sec=student.duration_sec,
-            pitch=PitchCurves(
-                student=student_pitch.points,
-                reference=reference_curve if is_comparative else None,
-                hop_ms=hop_ms,
-            ),
-            segments=segments,
-            scores=scores,
-            metrics=metrics,
-            feedback=feedback,
-            timings=Timings(
-                preprocess_ms=preprocess_ms,
-                pitch_ms=pitch_ms,
-                rhythm_ms=rhythm_ms,
-                align_ms=align_ms,
-                dtw_ms=dtw_ms,
-                scoring_ms=scoring_ms,
-            ),
+        reference_curve = (
+            reference_pitch.points
+            if reference_pitch is not None
+            else reference_notes_points
         )
-    )
+        response = _accepted(
+            AnalysisResult(
+                analysis_id=uuid.uuid4().hex,
+                attempt_id=attempt_id,
+                routine_id=routine_id,
+                status="completed",
+                mode=cast(AnalysisMode, mode),
+                algorithm_version=_ALGORITHM_VERSION,
+                duration_sec=student.duration_sec,
+                pitch=PitchCurves(
+                    student=student_pitch.points,
+                    reference=reference_curve if is_comparative else None,
+                    hop_ms=hop_ms,
+                ),
+                segments=segments,
+                scores=scores,
+                metrics=metrics,
+                feedback=feedback,
+                timings=Timings(
+                    preprocess_ms=preprocess_ms,
+                    pitch_ms=pitch_ms,
+                    rhythm_ms=rhythm_ms,
+                    align_ms=align_ms,
+                    dtw_ms=dtw_ms,
+                    scoring_ms=scoring_ms,
+                ),
+            )
+        )
+        status = "success"
+        return response
+    finally:
+        active_requests.dec()
+        analysis_duration_seconds.labels(mode=mode).observe(
+            time.perf_counter() - started
+        )
+        analysis_requests_total.labels(mode=mode, status=status).inc()
 
 
 @router.get(

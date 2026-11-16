@@ -102,6 +102,15 @@ httpx.Timeout(connect=5.0, read=300.0)
 > ≥ 300 s (ya documentado). Optimización planificada en Sprint 2
 > (HU-S2-XX: downsample selectivo o cache por hash de audio).
 
+> **Timeouts internos (HU-S1-05).** Además del timeout del cliente, el servicio
+> protege su worker con timeouts configurables: `PYIN_TIMEOUT_SECONDS` (default
+> **120 s**; rango `0 < x < 300`) para `librosa.pyin` y `ALIGN_TIMEOUT_SECONDS`
+> (default **30 s**; rango `0 < x < 120`) para FastDTW. Al vencer, `POST /analyze`
+> responde **504 `ANALYSIS_TIMEOUT`** con `request_id`. Limitación: librosa/FastDTW
+> no son interrumpibles; el request responde y libera el semáforo, pero el hilo
+> huérfano termina por su cuenta (el executor acota cuántos se acumulan). Core:
+> reintentar con backoff.
+
 ## 4. Matriz de response por modo
 
 `GET /api/v1/analyze/{analysis_id}` → `200 AnalysisResult`.
@@ -190,6 +199,7 @@ curl http://singing-service:5000/version
 | 500 | `FFMPEG_NOT_FOUND` | sin FFmpeg en el servicio | Reintentar 1-2 veces; si persiste, alertar |
 | 500 | `UNHANDLED_ERROR` | Excepción no capturada (bug del servicio) | Reintentar con backoff; alertar; reportar con `request_id` |
 | 503 | — | `/health` degradado (sin `detail.code`) | No encolar; alertar |
+| 504 | `ANALYSIS_TIMEOUT` | timeout interno de pyin o alineación (HU-S1-05) | **Reintentar con backoff**; alertar si persiste |
 | — | `ConnectionError` | servicio caído / red | **Reintentar con backoff** |
 
 > **Nota de wire real.** El `singing-service` **no** emite `INTERNAL_ERROR` ni `SERVICE_DEGRADED`. Esos códigos son responsabilidad del Core al envolver la respuesta. Los únicos códigos que el servicio emite son los listados en la tabla. Si el worker de Core recibe un **5xx sin body JSON parseable** (crash no capturado, timeout del proxy, respuesta truncada), debe tratarlo como error recuperable: reintentar con backoff exponencial (máx. 3) y, si persiste, marcar el `Attempt` como `fallido` y alertar. El Core es quien mapea ese caso a su propio `INTERNAL_ERROR` antes de persistir.

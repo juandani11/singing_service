@@ -118,6 +118,20 @@
           },
           "503": {
             "description": "No aplica a este endpoint: el 503 lo devuelve `/health` cuando el servicio está degradado."
+          },
+          "504": {
+            "description": "Timeout interno de pyin o de la alineación (HU-S1-05)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": {
+                    "code": "ANALYSIS_TIMEOUT",
+                    "message": "El análisis excedió el timeout en la fase 'pyin'",
+                    "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e"
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -363,6 +377,26 @@
                   "librosa": "1.0.0",
                   "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e"
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "tags": [
+          "Sistema"
+        ],
+        "summary": "Métricas Prometheus",
+        "description": "Métricas del servicio en formato Prometheus (`text/plain; version=0.0.4`). Sin autenticación: red interna, consistente con `/health`. Incluye contadores de análisis, histogramas de latencia (total, pitch, alineación y ritmo), requests activos y timeouts internos.",
+        "operationId": "metrics_metrics_get",
+        "responses": {
+          "200": {
+            "description": "Métricas en formato Prometheus",
+            "content": {
+              "text/plain": {
+                "example": "# HELP analysis_requests_total Análisis finalizados por modo y resultado\n# TYPE analysis_requests_total counter\nanalysis_requests_total{mode=\"absolute\",status=\"success\"} 1.0\n"
               }
             }
           }

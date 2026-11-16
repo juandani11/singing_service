@@ -7,7 +7,8 @@ opcionalmente, referencia), devuelve métricas y feedback. No gestiona auth, no 
 y no conoce usuarios: la fuente de verdad es el Core (PostgreSQL).
 
 - Puerto: `5000` (red interna Docker; sin publicar en producción).
-- API: `POST /api/v1/analyze` (202) + `GET /api/v1/analyze/{id}` + `GET /health`.
+- API: `POST /api/v1/analyze` (202) + `GET /api/v1/analyze/{id}` + `GET /health`,
+  `/ready`, `/version` y `/metrics` (Prometheus).
 - Contrato: [`celery-contract.md`](celery-contract.md).
 
 ## 2. Vista de componentes internos
@@ -15,8 +16,9 @@ y no conoce usuarios: la fuente de verdad es el Core (PostgreSQL).
 ```
 singing-service/
 ├── app/
-│   ├── main.py                  # FastAPI app, /health (checks), /docs
-│   ├── api/routes/analyze.py    # POST/GET /analyze, semáforo, idempotencia
+│   ├── main.py                  # FastAPI app, /health /ready /version /metrics
+│   ├── metrics.py               # métricas Prometheus (HU-S1-05)
+│   ├── api/routes/analyze.py    # POST/GET /analyze, semáforo, timeouts, idempotencia
 │   ├── core/
 │   │   ├── config.py            # settings por env (límites, TTL, concurrencia)
 │   │   ├── log.py               # eventos JSON una-línea (RNF-03)
@@ -32,7 +34,7 @@ singing-service/
 │   │   ├── rhythm_eval.py       # stub (diferido a Sprint 1)
 │   │   └── align.py             # FastDTW cableado en comparative (HU-S1-04); fallback align_by_time
 │   └── mock/data.py             # fixture con valores de Figma (no expuesto por API)
-├── tests/                       # 115 tests por defecto + 3 de integración
+├── tests/                       # 123 tests por defecto + 3 de integración
 ├── integration/                 # simulador Celery, matriz de errores, fixtures, verify
 └── docs/                        # contrato, arquitectura, backlog, troubleshooting
 ```
@@ -107,12 +109,13 @@ Pasos:
 
 - **Python 3.14.6** — local venv y Docker (`python:3.14.6-slim`). Librerías
   pinneadas: librosa 1.0.0, numba 0.68.0, scipy 1.18.1, numpy 2.5.3.
-  Ambas suites: **118 tests (115 por defecto + 3 integración), 98 %**; Docker
-  115 + 1 passed + 2 skipped (fixtures MASTmelody).
+  Ambas suites: **126 tests (123 por defecto + 3 integración), 98 %**; Docker
+  123 + 1 passed + 2 skipped (fixtures MASTmelody).
 - **FFmpeg** (sistema/Docker): decodificación y normalización de audio.
 - **librosa**, **soundfile**, **numpy**, **scipy**: pitch y análisis.
 - **numba/llvmlite**: JIT de pyin (causa el arranque frío).
 - **FastAPI**, **Uvicorn**, **Pydantic**, **python-multipart**.
+- **prometheus-client 0.21.0**: métricas de `/metrics` (HU-S1-05).
 
 ## 6.1 Configuración de build (`GIT_SHA`, `BUILD_TIME`)
 
@@ -147,6 +150,22 @@ Por defecto se ejecutan; el startup completo queda en ~14 s (Docker: pyin ~9.4 s
 `warmup_completed`/`warmup_failed` y
 `warmup_beat_track_completed`/`warmup_beat_track_failed`.
 
+## 6.3 Configuración de timeouts internos (`PYIN_TIMEOUT_SECONDS`, `ALIGN_TIMEOUT_SECONDS`)
+
+`analyze.py` envuelve `librosa.pyin` y `align_frames` (FastDTW) en un
+`ThreadPoolExecutor` con `asyncio.wait_for`. Al vencer, responde
+**504 `ANALYSIS_TIMEOUT`** (`detail.code`) con `request_id` y libera el semáforo.
+
+| Env var | Default | Rango | Fase |
+|---|---|---|---|
+| `PYIN_TIMEOUT_SECONDS` | `120` | `0 < x < 300` | extracción de pitch (alumno y referencia) |
+| `ALIGN_TIMEOUT_SECONDS` | `30` | `0 < x < 120` | alineación FastDTW |
+
+Los valores se validan al arrancar (pydantic `Field`): un env inválido falla el
+startup, no un request. **Limitación:** librosa/FastDTW no son interrumpibles; el
+hilo huérfano sigue hasta terminar. El executor acota cuántos se acumulan; el
+semáforo se libera al responder, así que un timeout no bloquea la cola.
+
 ## 7. Riesgos conocidos
 
 - **JIT frío de numba/llvmlite:** mitigado con warm-up extendido en lifespan
@@ -158,11 +177,15 @@ Por defecto se ejecutan; el startup completo queda en ~14 s (Docker: pyin ~9.4 s
 - **CPU-bound:** pyin/FFmpeg consumen CPU; escalar horizontalmente (réplicas/HPA) y
   mantener el semáforo para no saturar.
 - **Imagen Docker ~1.6 GB** (aceptable; revisar si crece con CREPE/GPU).
-- **Sin timeout interno de pyin** (sólo FFmpeg 120 s); mitigación en HU-S1-05.
+- **Timeout interno no interrumpible:** pyin y FastDTW tienen timeout (HU-S1-05),
+  pero el hilo huérfano sigue ejecutándose tras el 504 hasta que librosa termina.
+  El executor lo acota; si se observan acumulaciones, reducir
+  `PYIN_TIMEOUT_SECONDS` o escalar réplicas.
 
 ## 8. Links
 
 - [`celery-contract.md`](celery-contract.md) — contrato con Core.
-- [`SPRINT1_BACKLOG.md`](SPRINT1_BACKLOG.md) — siguiente sprint.
+- [`SPRINT1_BACKLOG.md`](SPRINT1_BACKLOG.md) — backlog Sprint 1 (cerrado).
+- [`SPRINT2_BACKLOG.md`](SPRINT2_BACKLOG.md) — sprint actual (HU-S1-05 ✅).
 - [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) — problemas comunes.
 - [`../integration/README.md`](../integration/README.md) — kit de integración.

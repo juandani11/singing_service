@@ -4,6 +4,29 @@ Todos los cambios notables de `singing-service` se documentan aquí.
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/);
 versionado [SemVer](https://semver.org/lang/es/).
 
+## [0.4.0-dev] — 2026-11-16
+
+### Añadido
+
+- Timeout interno configurable (HU-S1-05): `PYIN_TIMEOUT_SECONDS` (default 120 s,
+  `0 < x < 300`) para `librosa.pyin` y `ALIGN_TIMEOUT_SECONDS` (default 30 s,
+  `0 < x < 120`) para FastDTW. Al vencer responde **504 `ANALYSIS_TIMEOUT`** con
+  `request_id`; el semáforo se libera. Limitación: el hilo huérfano no es
+  interrumpible (librosa/FastDTW) y termina por su cuenta.
+- `GET /metrics` Prometheus (sin auth; red interna): `analysis_requests_total`
+  (`mode`, `status`), `analysis_duration_seconds` (`mode`), `pitch_duration_seconds`,
+  `align_duration_seconds` (`method`), `rhythm_duration_seconds`, `active_requests`
+  y `analysis_timeouts_total` (`phase`).
+- `prometheus-client==0.21.0` en `requirements.txt`.
+- `tests/test_hu_s1_05.py` (8 tests); total **123 por defecto + 3 integración (126)**.
+- `ANALYSIS_TIMEOUT` (504) documentado en OpenAPI (`responses` de `/analyze`).
+
+### Documentación
+
+- `docs/celery-contract.md` §3 (timeouts internos) y §5 (504 `ANALYSIS_TIMEOUT`);
+  `docs/ARCHITECTURE.md` §1/§2/§6/§6.3/§7; `docs/USAGE.md` (`/metrics` y tabla de
+  errores); `docs/SPRINT2_BACKLOG.md` (HU-S1-05 ✅).
+
 ## [0.3.0] — 2026-11-16
 
 ### Añadido

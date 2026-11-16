@@ -2,6 +2,7 @@
 
 Sprint 0: scaffold + /health extendido + /docs.
 Sprint 1 (HU-S1-02): /ready (readiness) + /version (metadatos de build).
+Sprint 2 (HU-S1-05): /metrics Prometheus.
 """
 
 import importlib.metadata
@@ -15,11 +16,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.routes.analyze import router as analyze_router
@@ -494,3 +496,34 @@ async def version() -> dict:
         "librosa": _pkg_version("librosa"),
         "request_id": get_request_id(),
     }
+
+
+@app.get(
+    "/metrics",
+    tags=["Sistema"],
+    summary="Métricas Prometheus",
+    description=(
+        "Métricas del servicio en formato Prometheus (`text/plain; version=0.0.4`). "
+        "Sin autenticación: red interna, consistente con `/health`. Incluye "
+        "contadores de análisis, histogramas de latencia (total, pitch, alineación "
+        "y ritmo), requests activos y timeouts internos."
+    ),
+    response_class=Response,
+    responses={
+        200: {
+            "description": "Métricas en formato Prometheus",
+            "content": {
+                "text/plain": {
+                    "example": (
+                        "# HELP analysis_requests_total Análisis finalizados por modo y resultado\n"
+                        "# TYPE analysis_requests_total counter\n"
+                        'analysis_requests_total{mode="absolute",status="success"} 1.0\n'
+                    )
+                }
+            },
+        }
+    },
+)
+def metrics() -> Response:
+    """Expone el registry Prometheus por defecto (HU-S1-05)."""
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)

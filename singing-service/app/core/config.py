@@ -36,5 +36,10 @@ class Settings(BaseSettings):
     max_concurrent_analyses: int = Field(default=2, ge=1)
     busy_timeout_sec: float = Field(default=30.0, ge=0)
 
+    # Timeouts internos (HU-S1-05). librosa/fastdtw no son interrumpibles: al
+    # vencer, el request responde 504 y el hilo huérfano termina por su cuenta.
+    pyin_timeout_seconds: float = Field(default=120.0, gt=0, lt=300)
+    align_timeout_seconds: float = Field(default=30.0, gt=0, lt=120)
+
 
 settings = Settings()

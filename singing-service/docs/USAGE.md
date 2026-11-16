@@ -250,6 +250,26 @@ curl -H "X-Request-ID: test-123" http://localhost:5000/version
 - `git_sha`/`build_time` vienen de `GIT_SHA`/`BUILD_TIME` inyectados en build; si
   faltan, `"unknown"`.
 
+### GET /metrics
+
+- **Descripción:** métricas Prometheus del servicio (HU-S1-05). Sin auth; red
+  interna, consistente con `/health`.
+- **URL:** `GET http://singing-service:5000/metrics`
+- **Content-Type:** `text/plain; version=0.0.4; charset=utf-8`
+- **Métricas:**
+  - `analysis_requests_total{mode,status}` — análisis por modo y resultado.
+  - `analysis_duration_seconds{mode}` — histograma de latencia total.
+  - `pitch_duration_seconds` — histograma de pyin.
+  - `align_duration_seconds{method}` — histograma de alineación (`fastdtw`/`time`).
+  - `rhythm_duration_seconds` — histograma de `rhythm_eval`.
+  - `active_requests` — análisis en curso.
+  - `analysis_timeouts_total{phase}` — timeouts internos (`pyin`/`align`).
+- **curl (primeras líneas):**
+
+```bash
+curl -s http://localhost:5000/metrics | head -20
+```
+
 ## 4. Formatos de audio soportados
 
 | Formato | Extensión | Notas |
@@ -358,6 +378,7 @@ Error 400 (body con `request_id`):
 | 500 | `FFMPEG_NOT_FOUND` | sin FFmpeg | Reintentar 1-2 veces |
 | 500 | `UNHANDLED_ERROR` | excepción no capturada (bug del servicio) | Reintentar con backoff; alertar; reportar con `request_id` |
 | 503 | — | `/health` degradado | No encolar; alertar |
+| 504 | `ANALYSIS_TIMEOUT` | timeout interno de pyin o alineación | **Reintentar con backoff**; alertar si persiste |
 
 - **`UNHANDLED_ERROR` (500):** error interno no capturado. El body incluye
   `request_id`; úsalo para reportar el bug. Core debe reintentar con backoff.
