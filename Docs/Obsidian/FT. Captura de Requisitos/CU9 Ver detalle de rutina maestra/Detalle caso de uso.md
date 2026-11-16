@@ -1,0 +1,13 @@
+#### CU-09: Ver detalle de rutina maestra
+
+| Campo                 | Detalle                                                                                                                                                                                                       |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Caso de Uso**       | CU-09: Ver detalle de rutina maestra                                                                                                                                                                          |
+| **Propósito**         | Permitir al instructor visualizar toda la información de una rutina específica.                                                                                                                               |
+| **Descripción**       | El instructor selecciona una rutina y el sistema muestra sus detalles e instrucciones.                                                                                                                        |
+| **Actores**           | Instructor                                                                                                                                                                                                    |
+| **Actores Iniciador** | Instructor                                                                                                                                                                                                    |
+| **Precondición**      | Sesión activa y tener al menos una rutina creada.                                                                                                                                                             |
+| **Flujo de Suceso**   | **Ver detalle**  <br>1. El instructor selecciona una rutina del listado.  <br>2. El sistema recupera los datos de la rutina.  <br>3. Se muestran las instrucciones, dificultad, duración y video (si existe). |
+| **Postcondición**     | El instructor visualiza el detalle completo.                                                                                                                                                                  |
+| **Excepción**         | **Rutina no encontrada**  <br>1. La rutina fue eliminada o no existe.  <br>2. El sistema muestra un mensaje de error.  <br>3. Redirige al listado principal.                                                  |

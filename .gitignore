@@ -37,3 +37,8 @@ Thumbs.db
 # Secretos
 *.pem
 *.key
+
+# Obsidian (workspace personal / binario Enterprise Architect)
+Docs/Obsidian/.obsidian/
+Docs/Obsidian/.trash/
+Docs/Obsidian/**/*.eap
