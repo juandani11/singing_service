@@ -29,7 +29,7 @@ from app.schemas.analyze import (
     Segment,
     Timings,
 )
-from app.services.align import build_segments
+from app.services.align import align_frames, build_segments
 from app.services.compare import ComparedFrame, align_by_time, parse_reference_notes
 from app.services.feedback import build_absolute_feedback, build_feedback
 from app.services.metrics import absolute_metrics, comparative_metrics
@@ -74,6 +74,7 @@ def _accepted(result: AnalysisResult) -> AcceptedResponse:
             "preprocess_ms": result.timings.preprocess_ms,
             "pitch_ms": result.timings.pitch_ms,
             "rhythm_ms": result.timings.rhythm_ms,
+            "align_ms": result.timings.align_ms,
             "dtw_ms": result.timings.dtw_ms,
             "scoring_ms": result.timings.scoring_ms,
         },
@@ -348,17 +349,30 @@ async def analyze(
                 if reference_pitch is not None
                 else reference_notes_points
             )
+            alignment_method = "time"
             if is_comparative and reference_points:
-                tolerance = max(hop_ms / 1000.0 * 2.0, 0.1)
-                aligned = align_by_time(
-                    student_pitch.points, reference_points, tolerance_sec=tolerance
-                )
+                try:
+                    aligned = align_frames(student_pitch.points, reference_points)
+                    alignment_method = "fastdtw"
+                except Exception as exc:
+                    log_event(
+                        logging.WARNING,
+                        "align_fastdtw_failed",
+                        error=f"{type(exc).__name__}: {exc}",
+                    )
+                    tolerance = max(hop_ms / 1000.0 * 2.0, 0.1)
+                    aligned = align_by_time(
+                        student_pitch.points,
+                        reference_points,
+                        tolerance_sec=tolerance,
+                    )
             else:
                 aligned = [
                     ComparedFrame(cents=None, ref_f0=None)
                     for _ in student_pitch.points
                 ]
-            dtw_ms = int((time.perf_counter() - compare_start) * 1000)
+            align_ms = int((time.perf_counter() - compare_start) * 1000)
+            dtw_ms = align_ms
 
             rhythm_start = time.perf_counter()
             rhythm_y, _ = await run_in_threadpool(
@@ -432,6 +446,7 @@ async def analyze(
                     "onset_count": rhythm.onset_count,
                     "onset_stability": rhythm.onset_stability,
                     "tempo_deviation_bpm": rhythm.tempo_deviation_bpm,
+                    "alignment_method": alignment_method,
                 }
             )
             scores = scores.model_copy(
@@ -487,6 +502,7 @@ async def analyze(
                 preprocess_ms=preprocess_ms,
                 pitch_ms=pitch_ms,
                 rhythm_ms=rhythm_ms,
+                align_ms=align_ms,
                 dtw_ms=dtw_ms,
                 scoring_ms=scoring_ms,
             ),

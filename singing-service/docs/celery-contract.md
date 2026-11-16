@@ -123,9 +123,15 @@ httpx.Timeout(connect=5.0, read=300.0)
 | `metrics.onset_count` | entero ≥0 | entero ≥0 | onsets detectados (`wait=5`) |
 | `metrics.onset_stability` | 0–100 o **`null`** | 0–100 o **`null`** | `100·(1−CV)` de intervalos |
 | `metrics.tempo_deviation_bpm` | **`null`** sin `tempo_bpm` | número con `tempo_bpm` | `estimated − tempo_bpm` |
+| `metrics.alignment_method` | `"time"` | `"fastdtw"` o `"time"` | método de alineación (HU-S1-04); `time` = fallback |
 | `segments` | `no_voice` (+ `out_of_rhythm`) | `out_of_tune` + `no_voice` (+ `out_of_rhythm`) | `out_of_rhythm` lleva `interval_ms`/`message` |
 | `feedback[].code` | `NO_VOICE`, `UNSTABLE_PITCH`, `PITCH_OUT_OF_RANGE`, `OUT_OF_RHYTHM` | `OUT_OF_TUNE`, `NO_VOICE`, `OUT_OF_RHYTHM` | códigos estables para i18n |
-| `timings` | preprocess/pitch/rhythm/dtw/scoring | idem | `rhythm_ms` = tempo/onsets (HU-S1-01) |
+| `timings` | preprocess/pitch/rhythm/align/dtw/scoring | idem | `align_ms` = alineación (HU-S1-04); `dtw_ms` alias de `align_ms`; `rhythm_ms` = tempo/onsets |
+
+> **Alineación (HU-S1-04, no-BREAKING).** `mode=comparative` usa FastDTW
+> (`align_frames`) y cae a `align_by_time` si FastDTW falla. `metrics.alignment_method`
+> indica `"fastdtw"` o `"time"`. `timings.align_ms` es aditivo; `dtw_ms` se mantiene
+> como alias del mismo valor.
 
 > **Nota C — cardinalidad de `feedback`.** El array `feedback` contiene **1 ítem por tipo** (`OUT_OF_TUNE`, `NO_VOICE`), **no 1 por segmento**. En `OUT_OF_TUNE` se reporta la **peor desviación** (mayor `delta_cents`). Los detalles completos por segmento están en `segments[]`. Comportamiento documentado en `Docs/scoring.md` §Feedback. Un cambio a 1 feedback por segmento sería BREAKING y requiere coordinación con Core.
 

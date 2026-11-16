@@ -6,7 +6,7 @@
 2. `cd singing-service`
 3. `docker compose up -d --build singing-service`
 4. `pip install -r requirements-dev.txt`
-5. `pytest -v` → **111 passed** (2 de integración deseleccionados); `pytest -v -m integration` → **2** (local) / **1 passed + 1 skipped** (Docker).
+5. `pytest -v` → **115 passed** (3 de integración deseleccionados); `pytest -v -m integration` → **3** (local) / **1 passed + 2 skipped** (Docker).
 
 > **Tests de integración.** Los marcados `@pytest.mark.integration` (MASTmelody y
 > worker 5xx) se excluyen por defecto (`-m 'not integration'`); correr

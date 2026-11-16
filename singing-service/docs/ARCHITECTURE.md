@@ -30,9 +30,9 @@ singing-service/
 │   │   ├── scoring.py           # scores 0–100
 │   │   ├── feedback.py          # códigos y mensajes (HU-46)
 │   │   ├── rhythm_eval.py       # stub (diferido a Sprint 1)
-│   │   └── align.py             # FastDTW (reservado para Sprint 1; no en la ruta)
+│   │   └── align.py             # FastDTW cableado en comparative (HU-S1-04); fallback align_by_time
 │   └── mock/data.py             # fixture con valores de Figma (no expuesto por API)
-├── tests/                       # 111 tests por defecto + 2 de integración
+├── tests/                       # 115 tests por defecto + 3 de integración
 ├── integration/                 # simulador Celery, matriz de errores, fixtures, verify
 └── docs/                        # contrato, arquitectura, backlog, troubleshooting
 ```
@@ -68,7 +68,7 @@ flowchart TD
     F --> G[librosa.pyin -> F0]
     G --> H{mode}
     H -- absolute --> I[Metricas internas]
-    H -- comparative --> J[align_by_time + metricas vs referencia]
+    H -- comparative --> J[align_frames (FastDTW) + fallback align_by_time + metricas]
     I --> K[Scores + segments + feedback]
     J --> K
     K --> L[202 + GET /analyze/id]
@@ -99,15 +99,16 @@ Pasos:
 - **FFmpeg por subprocess** (no pydub). `ffmpeg-python==0.2.0` queda instalado para
   probing/estandarización, pero la ruta usa `subprocess` directo.
 - **`rhythm_eval` diferido a Sprint 1:** stub explícito; `rhythm_accuracy=null`.
-- **Comparación simple, no DTW:** `align_by_time` remuestrea la referencia sobre los
-  tiempos del alumno. `align.py` (FastDTW) queda reservado para Sprint 1.
+- **FastDTW cableado (HU-S1-04):** `analyze.py` usa `align_frames` en
+  `mode=comparative`; si falla, cae a `align_by_time` (`metrics.alignment_method`
+  = `"fastdtw"` | `"time"`). `timings.align_ms` es aditivo; `dtw_ms` es alias.
 
 ## 6. Dependencias externas
 
 - **Python 3.14.6** — local venv y Docker (`python:3.14.6-slim`). Librerías
   pinneadas: librosa 1.0.0, numba 0.68.0, scipy 1.18.1, numpy 2.5.3.
-  Ambas suites: **113 tests (111 por defecto + 2 integración), 98 %**; Docker
-  111 + 1 passed + 1 skipped (fixture MASTmelody).
+  Ambas suites: **118 tests (115 por defecto + 3 integración), 98 %**; Docker
+  115 + 1 passed + 2 skipped (fixtures MASTmelody).
 - **FFmpeg** (sistema/Docker): decodificación y normalización de audio.
 - **librosa**, **soundfile**, **numpy**, **scipy**: pitch y análisis.
 - **numba/llvmlite**: JIT de pyin (causa el arranque frío).

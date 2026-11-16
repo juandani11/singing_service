@@ -124,6 +124,13 @@ class Metrics(BaseModel):
     onset_count: int = Field(default=0, ge=0)
     onset_stability: float | None = Field(default=None, ge=0, le=100)
     tempo_deviation_bpm: float | None = Field(default=None)
+    alignment_method: Literal["fastdtw", "time"] = Field(
+        default="time",
+        description=(
+            "Método de alineación en comparative: fastdtw (HU-S1-04) o time (fallback); "
+            "time también en absolute"
+        ),
+    )
     average_cent_deviation: float | None = Field(default=None, ge=0)
 
 
@@ -138,7 +145,12 @@ class Timings(BaseModel):
     preprocess_ms: int = Field(ge=0)
     pitch_ms: int = Field(ge=0)
     rhythm_ms: int = Field(default=0, ge=0, description="Análisis de tempo/onsets (HU-S1-01)")
-    dtw_ms: int = Field(ge=0, description="Comparación temporal (simple en v1; FastDTW en S1)")
+    align_ms: int = Field(
+        default=0,
+        ge=0,
+        description="Alineación temporal (FastDTW o fallback time; HU-S1-04)",
+    )
+    dtw_ms: int = Field(ge=0, description="Alias de align_ms (compatibilidad)")
     scoring_ms: int = Field(ge=0)
 
 

@@ -25,10 +25,17 @@ versionado [SemVer](https://semver.org/lang/es/).
 - Campos aditivos: `scores.ritmo`, `metrics.estimated_tempo_bpm`,
   `metrics.onset_count`, `metrics.onset_stability`, `metrics.tempo_deviation_bpm`,
   `timings.rhythm_ms`, `tempo_bpm` (form).
+- FastDTW (`align_frames`) cableado en `mode=comparative`; fallback
+  `align_by_time` si falla.
+- `metrics.alignment_method` (`"fastdtw"` | `"time"`) y `timings.align_ms`
+  (aditivos; `dtw_ms` se mantiene como alias).
+- MASTmelody `pitch_accuracy` 20.7→44.4; `average_cent_deviation` 153.9→92.9;
+  offset 200 ms alineado (>80). La calibración de umbrales es HU-S4-XX.
 - Tests de integración (`@pytest.mark.integration`) para MASTmelody y worker 5xx;
-  `pytest` por defecto 111; `pytest -m integration` 2 (local) / 1+1 skipped (Docker).
-- `tests/test_hu_s1_02.py` (9), `tests/test_hu_s1_03.py` (8) y
-  `tests/test_hu_s1_01.py` (13); total 111 por defecto + 2 integración (113).
+  `pytest` por defecto 115; `pytest -m integration` 3 (local) / 1+2 skipped (Docker).
+- `tests/test_hu_s1_02.py` (9), `tests/test_hu_s1_03.py` (8),
+  `tests/test_hu_s1_01.py` (13) y `tests/test_hu_s1_04.py` (5);
+  total 115 por defecto + 3 integración (118).
 
 ### Cambiado
 
@@ -39,9 +46,9 @@ versionado [SemVer](https://semver.org/lang/es/).
 ### Documentación
 
 - `docs/celery-contract.md` §2 (`tempo_bpm`), §3 (JIT/startup y nota de latencia
-  `rhythm_eval`), §4 (ritmo aditivo) y §4.1; `docs/USAGE.md`;
-  `docs/ARCHITECTURE.md` §6.1, §6.2 y §7; `Docs/scoring.md` §Ritmo y §Feedback;
-  `docs/SPRINT1_BACKLOG.md` HU-S2-XX (optimizar latencia de ritmo);
+  `rhythm_eval`), §4 (ritmo y alineación aditivos) y §4.1; `docs/USAGE.md`;
+  `docs/ARCHITECTURE.md` §6.1, §6.2 y §7; `Docs/scoring.md` §Ritmo, §Feedback y
+  FastDTW cableado; `docs/SPRINT1_BACKLOG.md` HU-S1-04 ✅ y HU-S2-XX;
   `CIERRE_HU_S1_01.md` §Limitaciones conocidas.
 
 ## [Unreleased]

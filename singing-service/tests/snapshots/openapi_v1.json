@@ -693,6 +693,16 @@
             ],
             "title": "Tempo Deviation Bpm"
           },
+          "alignment_method": {
+            "type": "string",
+            "enum": [
+              "fastdtw",
+              "time"
+            ],
+            "title": "Alignment Method",
+            "description": "Método de alineación en comparative: fastdtw (HU-S1-04) o time (fallback); time también en absolute",
+            "default": "time"
+          },
           "average_cent_deviation": {
             "anyOf": [
               {
@@ -966,11 +976,18 @@
             "description": "Análisis de tempo/onsets (HU-S1-01)",
             "default": 0
           },
+          "align_ms": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Align Ms",
+            "description": "Alineación temporal (FastDTW o fallback time; HU-S1-04)",
+            "default": 0
+          },
           "dtw_ms": {
             "type": "integer",
             "minimum": 0.0,
             "title": "Dtw Ms",
-            "description": "Comparación temporal (simple en v1; FastDTW en S1)"
+            "description": "Alias de align_ms (compatibilidad)"
           },
           "scoring_ms": {
             "type": "integer",

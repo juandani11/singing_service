@@ -37,13 +37,13 @@ métricas comparativas más ricas, preparado para integrar con el Core en produc
   pyin o migrar a CREPE.
 - **Esfuerzo:** M
 
-### HU-S1-04 — Alineamiento temporal robusto en comparative
+### HU-S1-04 — Alineamiento temporal robusto en comparative — ✅ Ejecutada
 
-- **Descripción:** v0.2.0 ya compara por tiempo (`compare.align_by_time`,
-  nearest-neighbor). Sprint 1 mejora la tolerancia para offsets de ~200 ms
-  (interpolación/remuestreo de la referencia), **sin FastDTW todavía**.
-- **Criterios:** `average_cent_deviation` baja en audios con offset de 200 ms;
-  tests con referencia desplazada.
+- **Descripción:** `align_frames` (FastDTW) cableado en `mode=comparative`;
+  fallback `align_by_time` si FastDTW falla; `metrics.alignment_method` y
+  `timings.align_ms` (aditivos; `dtw_ms` alias).
+- **Criterios:** MASTmelody `pitch_accuracy` 20.7→44.4 y
+  `average_cent_deviation` 153.9→92.9; offset 200 ms alineado (>80); tests.
 - **Esfuerzo:** M
 
 ### HU-S1-05 — Timeout interno y métricas Prometheus
@@ -112,7 +112,7 @@ métricas comparativas más ricas, preparado para integrar con el Core en produc
 
 ## Fuera de alcance (Sprint 2+)
 
-- FastDTW / alineamiento avanzado.
+- Alineamiento por beats vs referencia (FastDTW ya cableado en HU-S1-04).
 - GPU / CREPE en producción.
 - `mode=absolute` con referencia opcional.
 - Métricas de expresión / vibrato.
