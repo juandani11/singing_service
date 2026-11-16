@@ -4,7 +4,7 @@ Todos los cambios notables de `singing-service` se documentan aquí.
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/);
 versionado [SemVer](https://semver.org/lang/es/).
 
-## [0.3.0-dev] — 2026-11-15
+## [0.3.0] — 2026-11-16
 
 ### Añadido
 
@@ -50,6 +50,16 @@ versionado [SemVer](https://semver.org/lang/es/).
   `docs/ARCHITECTURE.md` §6.1, §6.2 y §7; `Docs/scoring.md` §Ritmo, §Feedback y
   FastDTW cableado; `docs/SPRINT1_BACKLOG.md` HU-S1-04 ✅ y HU-S2-XX;
   `CIERRE_HU_S1_01.md` §Limitaciones conocidas.
+- `Docs/ALCANCE_SINGING_SERVICE.md` nuevo: mapeo “Sprint 0 local = S0–S5”,
+  `sprint1` = post-MVP/calidad, RF docx↔Obsidian, extensiones, HUs, API y límites
+  Core/Frontend.
+- 5 históricos con banner `HISTÓRICO v0.2.x`: `HANDOFF_CORE.md`,
+  `MENSAJE_CORE.md`, `INDEX_DOCUMENTADOR.md`, `ESTADO_ACTUAL.md`,
+  `Docs/integracion-core.md` (contenido intacto).
+- `Docs/Obsidian/` commiteado (50 `.md`; `.obsidian/` y `.eap` ignorados).
+- `docs/SPRINT1_BACKLOG.md` actualizado: HU-S1-01/02/03/04/06 ✅, HU-S1-09/10
+  nuevas y “Pendientes reales”.
+- `CIERRE_BATCH_DOCS.md` (batch de deuda documental).
 
 ## [Unreleased]
 
