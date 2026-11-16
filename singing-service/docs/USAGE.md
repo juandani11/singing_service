@@ -24,7 +24,7 @@ curl http://localhost:5000/health
 ```
 
 ```json
-{"status":"ok","service":"singing-service","version":"0.3.0","checks":{"ffmpeg":{"ok":true,"version":"7.1.5-0+deb13u1"},"librosa":{"ok":true,"version":"1.0.0"},"models_loaded":{"ok":true},"disk_space_mb":943399,"warmup":{"ok":true,"duration_ms":6090.6}},"request_id":"0a2e3487cd38468890e455be4d4a5d5f","timestamp":"2026-11-15T20:34:25.762105+00:00"}
+{"status":"ok","service":"singing-service","version":"0.3.0","checks":{"ffmpeg":{"ok":true,"version":"7.1.5-0+deb13u1"},"librosa":{"ok":true,"version":"1.0.0"},"models_loaded":{"ok":true},"disk_space_mb":936554,"warmup":{"ok":true,"duration_ms":9360.74},"rhythm_warmup":{"ok":true,"duration_ms":1274.22}},"request_id":"d1ccb46c79e44a19a011afa8b31524fb","timestamp":"2026-11-16T01:07:07.526390+00:00"}
 ```
 
 ### 2.2 Primer request (curl)
@@ -74,14 +74,53 @@ Resultado real (resumen; `pitch.student` tiene 156 frames y aquí se recorta):
     "hop_ms": 32
   },
   "segments": [],
-  "scores": {"vocal": 99, "afinacion": 100, "estabilidad": 100, "control_volumen": 97, "silence_pct": 0},
-  "metrics": {"pitch_stability_cents": 0.0, "mean_pitch_hz": 439.8, "voiced_ratio": 1.0, "pitch_accuracy": null, "rhythm_accuracy": null, "average_cent_deviation": null},
+  "scores": {"vocal": 99, "afinacion": 100, "estabilidad": 100, "control_volumen": 97, "ritmo": null, "silence_pct": 0},
+  "metrics": {"pitch_stability_cents": 0.0, "mean_pitch_hz": 439.8, "voiced_ratio": 1.0, "pitch_accuracy": null, "rhythm_accuracy": null, "estimated_tempo_bpm": null, "onset_count": 0, "onset_stability": null, "tempo_deviation_bpm": null, "average_cent_deviation": null},
   "feedback": [],
-  "timings": {"preprocess_ms": 762, "pitch_ms": 289, "dtw_ms": 0, "scoring_ms": 8}
+  "timings": {"preprocess_ms": 353, "pitch_ms": 110, "rhythm_ms": 7, "dtw_ms": 0, "scoring_ms": 2}
 }
 ```
 
-### 2.3 Verificar que funciona
+### 2.3 Ritmo (HU-S1-01)
+
+`rhythm_accuracy` es `null` si no hay onsets (p. ej. sine puro). Con audio con
+pulsos/voz real es un número 0–100 y se refleja en `scores.ritmo`.
+
+Sin `tempo_bpm` (sin referencia de tempo):
+
+```bash
+curl -X POST http://localhost:5000/api/v1/analyze \
+  -F "audio=@integration/fixtures/mastmelody_per.m4a" \
+  -F "attempt_id=manual-rhythm-1" \
+  -F "routine_id=manual" \
+  -F "mode=absolute"
+```
+
+Resultado real (extracto de `metrics`/`scores`):
+
+```json
+{"metrics": {"rhythm_accuracy": 72.7, "estimated_tempo_bpm": 90.9, "onset_count": 14, "onset_stability": 72.7, "tempo_deviation_bpm": null}, "scores": {"ritmo": 73}}
+```
+
+Con `tempo_bpm=120` (comparative; `tempo_deviation_bpm = estimated − 120`):
+
+```bash
+curl -X POST http://localhost:5000/api/v1/analyze \
+  -F "audio=@integration/fixtures/mastmelody_per.m4a" \
+  -F "reference_audio=@integration/fixtures/mastmelody_ref.m4a" \
+  -F "attempt_id=manual-rhythm-2" \
+  -F "routine_id=manual" \
+  -F "mode=comparative" \
+  -F "tempo_bpm=120"
+```
+
+Resultado real (extracto):
+
+```json
+{"metrics": {"rhythm_accuracy": 57.2, "estimated_tempo_bpm": 90.9, "onset_count": 14, "onset_stability": 72.7, "tempo_deviation_bpm": -29.1}, "scores": {"ritmo": 57}}
+```
+
+### 2.4 Verificar que funciona
 
 ```bash
 curl -o /dev/null -s -w "%{http_code}\n" http://localhost:5000/health   # 200
@@ -108,7 +147,7 @@ curl -s http://localhost:5000/openapi.json | head -c 200                 # JSON 
 | `reference_audio` | archivo | sólo comparative | `referencia.wav` | alternativa: `reference_notes` (JSON) |
 | `reference_notes` | form (JSON) | alternativa | `[{"t":0.0,"f0":440.0}]` | cada nota: `t` + `f0`/`note`/`midi` |
 | `include_contour` | form (bool) | no | `false` | **futuro** (Sprint 1); v0.2.0 lo ignora |
-| `tempo_bpm` | form (float) | no | `120` | **futuro** (Sprint 1); v0.2.0 lo ignora |
+| `tempo_bpm` | form (float) | no | `120` | tempo esperado (BPM); habilita `tempo_deviation_bpm` (HU-S1-01) |
 
 - **Response 202 (Accepted):**
 
@@ -156,7 +195,8 @@ GET 200 {'pitch_stability_cents': 0.0, 'mean_pitch_hz': 439.8, 'voiced_ratio': 1
 - **URL:** `GET http://singing-service:5000/api/v1/analyze/{analysis_id}`
 - **Auth:** ninguna.
 - **Response 200:** `AnalysisResult` (ver §2.2). En `absolute`, `pitch.reference`,
-  `pitch_accuracy`, `average_cent_deviation` y `rhythm_accuracy` son `null`.
+  `pitch_accuracy` y `average_cent_deviation` son `null`; `rhythm_accuracy` puede
+  ser número si hay onsets (HU-S1-01).
 - **Errores:** `404 ANALYSIS_NOT_FOUND` (id inexistente o TTL 1 h expirado).
 - **curl:**
 
@@ -171,7 +211,7 @@ curl http://localhost:5000/api/v1/analyze/<analysis_id>
 - **Response 200** (real):
 
 ```json
-{"status":"ok","service":"singing-service","version":"0.3.0","checks":{"ffmpeg":{"ok":true,"version":"7.1.5-0+deb13u1"},"librosa":{"ok":true,"version":"1.0.0"},"models_loaded":{"ok":true},"disk_space_mb":943399,"warmup":{"ok":true,"duration_ms":6090.6}},"request_id":"0a2e3487cd38468890e455be4d4a5d5f","timestamp":"2026-11-15T20:34:25.762105+00:00"}
+{"status":"ok","service":"singing-service","version":"0.3.0","checks":{"ffmpeg":{"ok":true,"version":"7.1.5-0+deb13u1"},"librosa":{"ok":true,"version":"1.0.0"},"models_loaded":{"ok":true},"disk_space_mb":936554,"warmup":{"ok":true,"duration_ms":9360.74},"rhythm_warmup":{"ok":true,"duration_ms":1274.22}},"request_id":"d1ccb46c79e44a19a011afa8b31524fb","timestamp":"2026-11-16T01:07:07.526390+00:00"}
 ```
 
 - **Response 503** si falta FFmpeg o librosa no carga (ver §9).

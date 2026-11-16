@@ -32,7 +32,7 @@ singing-service/
 │   │   ├── rhythm_eval.py       # stub (diferido a Sprint 1)
 │   │   └── align.py             # FastDTW (reservado para Sprint 1; no en la ruta)
 │   └── mock/data.py             # fixture con valores de Figma (no expuesto por API)
-├── tests/                       # 99 tests de servicio (+1 de integración)
+├── tests/                       # 112 tests de servicio (+1 de integración)
 ├── integration/                 # simulador Celery, matriz de errores, fixtures, verify
 └── docs/                        # contrato, arquitectura, backlog, troubleshooting
 ```
@@ -106,7 +106,7 @@ Pasos:
 
 - **Python 3.14.6** — local venv y Docker (`python:3.14.6-slim`). Librerías
   pinneadas: librosa 1.0.0, numba 0.68.0, scipy 1.18.1, numpy 2.5.3.
-  Ambas suites: **100 tests, 98 %**; sin diferencias conocidas.
+  Ambas suites: **113 tests, 98 %**; sin diferencias conocidas.
 - **FFmpeg** (sistema/Docker): decodificación y normalización de audio.
 - **librosa**, **soundfile**, **numpy**, **scipy**: pitch y análisis.
 - **numba/llvmlite**: JIT de pyin (causa el arranque frío).
@@ -128,18 +128,31 @@ $env:GIT_SHA = (git rev-parse --short HEAD); $env:BUILD_TIME = (Get-Date -Format
 
 Si no se pasan, `/version` muestra `"unknown"` (no falla).
 
-## 6.2 Configuración de warm-up (`SKIP_WARMUP`)
+## 6.2 Configuración de warm-up (`SKIP_WARMUP` / `SKIP_WARMUP_BEAT`)
 
-El lifespan ejecuta un warm-up de `librosa.pyin` (sine 440 Hz, 0.5 s, en memoria)
-para forzar el JIT de numba antes del primer request. `SKIP_WARMUP=true|1|yes|on`
-lo omite (tests/entornos rápidos); por defecto se ejecuta. El resultado se expone en
-`/health` (`checks.warmup`) y en el log `warmup_completed`/`warmup_failed`.
+El lifespan ejecuta dos warm-ups (sine 440 Hz, 0.5 s, en memoria):
+
+1. `librosa.pyin` (HU-S1-03) → `checks.warmup`.
+2. `librosa.beat.beat_track` + `librosa.onset.onset_detect` (HU-S1-01) →
+   `checks.rhythm_warmup`; el JIT de `beat_track` cuesta ~1.8 s en Docker en frío
+   (el prototipo local aislado midió ~10 s; el warm-up de pyin ya calienta parte
+   de numba).
+
+`SKIP_WARMUP=true|1|yes|on` omite ambos (tests/entornos rápidos).
+`SKIP_WARMUP_BEAT=true|1|yes|on` omite solo el de ritmo (tests que mockean librosa).
+Por defecto se ejecutan; el startup completo queda en ~14 s (Docker: pyin ~9.4 s
++ ritmo ~1.3 s; `/ready` a los ~14 s) y el primer `/analyze` no paga el JIT. Los logs son
+`warmup_completed`/`warmup_failed` y
+`warmup_beat_track_completed`/`warmup_beat_track_failed`.
 
 ## 7. Riesgos conocidos
 
-- **JIT frío de numba/llvmlite:** mitigado con warm-up en lifespan (HU-S1-03).
-  Primer request: 10 s → <2 s (ver `CIERRE_HU_S1_03.md`); el startup paga ~2.7 s
-  de warm-up en local.
+- **JIT frío de numba/llvmlite:** mitigado con warm-up extendido en lifespan
+  (pyin + `beat_track`/`onset_detect`; HU-S1-01/HU-S1-03). Sine primer/segundo:
+  10 s → <2 s (ver `CIERRE_HU_S1_01.md`/`CIERRE_HU_S1_03.md`); el startup paga ~14 s.
+- **`beat_track` lento en audios reales:** con `hop=960` (60 ms) MASTmelody baja de
+  5.7 s a ~1.5 s en local; en Docker mide ~3.8 s (documentado). El downsample a 8 kHz
+  se probó y se descartó (rompía ruido/tempo).
 - **CPU-bound:** pyin/FFmpeg consumen CPU; escalar horizontalmente (réplicas/HPA) y
   mantener el semáforo para no saturar.
 - **Imagen Docker ~1.6 GB** (aceptable; revisar si crece con CREPE/GPU).

@@ -18,7 +18,7 @@
           "Análisis"
         ],
         "summary": "Analizar audio de canto",
-        "description": "Analiza un audio de canto y devuelve métricas de pitch, segmentos y feedback.\n\n**Modos:**\n- `absolute` (default): análisis sin referencia; `pitch_accuracy` y\n  `average_cent_deviation` son `null`.\n- `comparative`: compara contra `reference_audio` (o `reference_notes`); requiere\n  referencia.\n\n**Formatos:** wav, m4a, mp3, aac, ogg. **Límites:** 50 MB, 600 s.\n\n**Futuro (Sprint 1):** `include_contour` y `tempo_bpm`; v0.2.0 los ignora.\n\n**Respuesta:** `202 Accepted` (no 200) con `{analysis_id, status, mode}`; el\nresultado completo se consulta en `GET /api/v1/analyze/{analysis_id}`.\n\n**Ejemplo curl:**\n```bash\ncurl -X POST http://localhost:5000/api/v1/analyze \\\n  -F \"audio=@test.wav\" \\\n  -F \"attempt_id=attempt-123\" \\\n  -F \"routine_id=routine-9\" \\\n  -F \"mode=absolute\"\n```",
+        "description": "Analiza un audio de canto y devuelve métricas de pitch, segmentos y feedback.\n\n**Modos:**\n- `absolute` (default): análisis sin referencia; `pitch_accuracy` y\n  `average_cent_deviation` son `null`.\n- `comparative`: compara contra `reference_audio` (o `reference_notes`); requiere\n  referencia.\n\n**Formatos:** wav, m4a, mp3, aac, ogg. **Límites:** 50 MB, 600 s.\n\n**Ritmo (HU-S1-01):** `tempo_bpm` opcional (BPM esperado); si se envía,\n`metrics.tempo_deviation_bpm` mide la desviación y `rhythm_accuracy` la incorpora.\n`include_contour` sigue siendo futuro (Sprint 1).\n\n**Respuesta:** `202 Accepted` (no 200) con `{analysis_id, status, mode}`; el\nresultado completo se consulta en `GET /api/v1/analyze/{analysis_id}`.\n\n**Ejemplo curl:**\n```bash\ncurl -X POST http://localhost:5000/api/v1/analyze \\\n  -F \"audio=@test.wav\" \\\n  -F \"attempt_id=attempt-123\" \\\n  -F \"routine_id=routine-9\" \\\n  -F \"mode=absolute\"\n```",
         "operationId": "analyze_api_v1_analyze_post",
         "requestBody": {
           "content": {
@@ -128,7 +128,7 @@
           "Análisis"
         ],
         "summary": "Obtener el resultado de un análisis",
-        "description": "Devuelve el `AnalysisResult` completo de un análisis previo.\n\nIncluye `pitch` (curvas F0), `segments`, `scores`, `metrics`, `feedback` y\n`timings`. En `mode=absolute`, `pitch.reference`, `pitch_accuracy`,\n`average_cent_deviation` y `rhythm_accuracy` son `null`.\n\nEl resultado vive en memoria con TTL de 1 h; si expiró, relanzar el `POST` con el\nmismo `attempt_id`.",
+        "description": "Devuelve el `AnalysisResult` completo de un análisis previo.\n\nIncluye `pitch` (curvas F0), `segments`, `scores`, `metrics`, `feedback` y\n`timings`. En `mode=absolute`, `pitch.reference`, `pitch_accuracy` y\n`average_cent_deviation` son `null`; `rhythm_accuracy` puede ser número si hay\nonsets (HU-S1-01).\n\nEl resultado vive en memoria con TTL de 1 h; si expiró, relanzar el `POST` con el\nmismo `attempt_id`.",
         "operationId": "get_analysis_api_v1_analyze__analysis_id__get",
         "parameters": [
           {
@@ -173,17 +173,23 @@
                     "afinacion": 100,
                     "estabilidad": 100,
                     "control_volumen": 97,
+                    "ritmo": 94,
                     "silence_pct": 0
                   },
                   "metrics": {
                     "pitch_stability_cents": 0.0,
                     "mean_pitch_hz": 439.8,
-                    "voiced_ratio": 1.0
+                    "voiced_ratio": 1.0,
+                    "rhythm_accuracy": 93.9,
+                    "estimated_tempo_bpm": 117.2,
+                    "onset_count": 10,
+                    "onset_stability": 93.9
                   },
                   "feedback": [],
                   "timings": {
                     "preprocess_ms": 762,
                     "pitch_ms": 289,
+                    "rhythm_ms": 31,
                     "dtw_ms": 0,
                     "scoring_ms": 8
                   }
@@ -245,6 +251,10 @@
                     "warmup": {
                       "ok": true,
                       "duration_ms": 2710.5
+                    },
+                    "rhythm_warmup": {
+                      "ok": true,
+                      "duration_ms": 10050.2
                     }
                   },
                   "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e",
@@ -274,6 +284,9 @@
                     },
                     "disk_space_mb": 952675,
                     "warmup": {
+                      "ok": false
+                    },
+                    "rhythm_warmup": {
                       "ok": false
                     }
                   },
@@ -531,6 +544,18 @@
             "title": "Mode",
             "description": "absolute (sin referencia) | comparative (requiere referencia)",
             "default": "absolute"
+          },
+          "tempo_bpm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tempo Bpm",
+            "description": "Tempo esperado en BPM (opcional); habilita tempo_deviation_bpm"
           }
         },
         "type": "object",
@@ -626,6 +651,48 @@
             ],
             "title": "Rhythm Accuracy"
           },
+          "estimated_tempo_bpm": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Tempo Bpm"
+          },
+          "onset_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Onset Count",
+            "default": 0
+          },
+          "onset_stability": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Onset Stability"
+          },
+          "tempo_deviation_bpm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tempo Deviation Bpm"
+          },
           "average_cent_deviation": {
             "anyOf": [
               {
@@ -641,7 +708,7 @@
         },
         "type": "object",
         "title": "Metrics",
-        "description": "Métricas del contrato híbrido (Sprint 0 — cierre de gaps).\n\n- `pitch_stability_cents`, `mean_pitch_hz`, `voiced_ratio`: en ambos modos.\n- `pitch_accuracy`, `average_cent_deviation`: sólo `mode=comparative` (null en absolute).\n- `rhythm_accuracy`: null siempre; ritmo diferido a Sprint 1 (decisión O4-B)."
+        "description": "Métricas del contrato híbrido (Sprint 0 + ritmo HU-S1-01).\n\n- `pitch_stability_cents`, `mean_pitch_hz`, `voiced_ratio`: en ambos modos.\n- `pitch_accuracy`, `average_cent_deviation`: sólo `mode=comparative` (null en absolute).\n- `rhythm_accuracy` y campos de ritmo: en ambos modos; null si no hay onsets."
       },
       "PitchCurves": {
         "properties": {
@@ -742,6 +809,20 @@
             "minimum": 0.0,
             "title": "Control Volumen"
           },
+          "ritmo": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ritmo",
+            "description": "Ritmo 0-100 (HU-S1-01); null si no hay onsets"
+          },
           "silence_pct": {
             "type": "integer",
             "maximum": 100.0,
@@ -779,10 +860,11 @@
             "type": "string",
             "enum": [
               "out_of_tune",
-              "no_voice"
+              "no_voice",
+              "out_of_rhythm"
             ],
             "title": "Type",
-            "description": "out_of_tune = desafinado; no_voice = ausencia de voz (HU-46 las diferencia)"
+            "description": "out_of_tune = desafinado; no_voice = ausencia de voz; out_of_rhythm = intervalo entre onsets anómalo"
           },
           "expected_note": {
             "anyOf": [
@@ -820,6 +902,31 @@
             "title": "Delta Cents",
             "description": "Desviación en cents (out_of_tune)"
           },
+          "interval_ms": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Ms",
+            "description": "Intervalo entre onsets (out_of_rhythm)"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message",
+            "description": "Mensaje del segmento (out_of_rhythm)"
+          },
           "severity": {
             "type": "string",
             "enum": [
@@ -851,6 +958,13 @@
             "type": "integer",
             "minimum": 0.0,
             "title": "Pitch Ms"
+          },
+          "rhythm_ms": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Rhythm Ms",
+            "description": "Análisis de tempo/onsets (HU-S1-01)",
+            "default": 0
           },
           "dtw_ms": {
             "type": "integer",

@@ -15,17 +15,30 @@ versionado [SemVer](https://semver.org/lang/es/).
 - Warm-up de `librosa.pyin` en lifespan (sine 440 Hz en memoria) para mitigar el JIT.
 - `SKIP_WARMUP` (default `false`) para omitir el warm-up.
 - `/health` `checks.warmup` (`{"ok": bool, "duration_ms": float|null}`), aditivo.
-- `tests/test_hu_s1_02.py` (9 tests) y `tests/test_hu_s1_03.py` (8 tests); total 100.
+- `rhythm_eval` real: `beat_track` (tempo, hop 960 = 60 ms) +
+  `onset_detect(wait=5)` (onsets) + filtro del onset artificial <50 ms.
+  Downsamples a 8 kHz descartado: rompía ruido/tempo; MASTmelody ~1.5 s local /
+  ~3.8 s Docker con hop 960 (documentado).
+- `rhythm_accuracy` deja de ser siempre `null` (número si hay onsets).
+- Warm-up extendido: `beat_track`/`onset_detect` + `SKIP_WARMUP_BEAT`; `/health`
+  `checks.rhythm_warmup`; log `warmup_beat_track_completed`.
+- Campos aditivos: `scores.ritmo`, `metrics.estimated_tempo_bpm`,
+  `metrics.onset_count`, `metrics.onset_stability`, `metrics.tempo_deviation_bpm`,
+  `timings.rhythm_ms`, `tempo_bpm` (form).
+- `tests/test_hu_s1_02.py` (9), `tests/test_hu_s1_03.py` (8) y
+  `tests/test_hu_s1_01.py` (13); total 113.
 
 ### Cambiado
 
 - `settings.version` 0.2.0 → 0.3.0.
-- `/health` ahora `async def` + `run_in_threadpool` (mismo shape + `checks.warmup`).
+- `/health` ahora `async def` + `run_in_threadpool` (mismo shape + `checks.warmup`
+  y `checks.rhythm_warmup`).
 
 ### Documentación
 
-- `docs/celery-contract.md` §3 (timeout) y §4.1; `docs/USAGE.md`;
-  `docs/ARCHITECTURE.md` §6.1, §6.2 y §7.
+- `docs/celery-contract.md` §2 (`tempo_bpm`), §3 (JIT/startup), §4 (ritmo aditivo)
+  y §4.1; `docs/USAGE.md`; `docs/ARCHITECTURE.md` §6.1, §6.2 y §7;
+  `Docs/scoring.md` §Ritmo y §Feedback.
 
 ## [Unreleased]
 

@@ -33,6 +33,7 @@ cents = 1200 · log2(f0_alumno / f0_referencia)
 |---|---|---|---|
 | `out_of_tune` | `\|cents\| ≥ 30` continuo | 0.4 s | `medium` si `\|cents\| < 50`; `high` si `≥ 50` |
 | `no_voice` | frames sin voz continuos | 0.6 s | `info` |
+| `out_of_rhythm` | intervalo entre onsets > 2× la mediana | — | `medium` si ratio < 3; `high` si ≥ 3 |
 
 - `delta_cents` = peor desviación del segmento; `expected_note`/`sung_note` =
   mediana de la F0 de referencia/alumno convertida a nota (A4 = 440 Hz).
@@ -51,6 +52,32 @@ cents = 1200 · log2(f0_alumno / f0_referencia)
 
 Límites: todos enteros en `[0, 100]` (validados por el esquema Pydantic).
 
+## Ritmo (HU-S1-01)
+
+Se analiza el WAV 16 kHz con `librosa.beat.beat_track` (tempo, `hop=960` = 60 ms)
+y `librosa.onset.onset_detect` (`hop=512`, `wait=5`); se descarta el onset
+artificial <50 ms del inicio. El coste JIT de `beat_track` se cubre en el warm-up
+del lifespan. Se probó downsample a 8 kHz para acelerar MASTmelody, pero rompía
+la calibración de ruido/tempo (onsets falsos y tempo 117 vs 110 BPM); se descartó.
+Con `hop=960`, MASTmelody tarda ~1.5 s en local y ~3.8 s en Docker (documentado;
+el primer/segundo `/analyze` con sine queda <2 s).
+
+| Métrica | Fórmula | Notas |
+|---|---|---|
+| `estimated_tempo_bpm` | salida de `beat_track` | null si el tempo no es finito o ≤ 0 |
+| `onset_count` | número de onsets | 0 en silencio/tono puro |
+| `onset_intervals_cv` | `σ(intervalos) / μ(intervalos)` | null si < 2 onsets; `μ > 0` |
+| `onset_stability` | `max(0, 100·(1 − CV))` | 100 = onsets perfectamente regulares |
+| `tempo_deviation_bpm` | `estimated_tempo_bpm − tempo_bpm` | null si no se envía `tempo_bpm` |
+| `rhythm_accuracy` | sin hint: `onset_stability`; con hint: `0.5·onset_stability + 0.5·max(0, 100 − 2·|deviation|)` | null si < 2 onsets |
+| `scores.ritmo` | `round(rhythm_accuracy)` | null si `rhythm_accuracy` es null |
+
+- `rhythm_accuracy` se calcula en **ambos modos** (`absolute` y `comparative`).
+- El feedback `OUT_OF_RHYTHM` reporta **1 ítem por tipo** con el **peor intervalo**
+  (máximo `interval_ms`), consistente con la Nota C de `OUT_OF_TUNE`.
+- Los segmentos `out_of_rhythm` llevan `start`, `end`, `severity`, `message` e
+  `interval_ms`; los detalles completos están en `segments[]`.
+
 ## Feedback (HU-46 / RF-39)
 
 Códigos estables para i18n; **siempre distinguen *sin voz* de *desafinación***:
@@ -59,8 +86,10 @@ Códigos estables para i18n; **siempre distinguen *sin voz* de *desafinación***
 |---|---|---|
 | `OUT_OF_TUNE` | existe ≥1 segmento `out_of_tune` | peor desviación en cents + notas esperado/cantado |
 | `NO_VOICE` | existe ≥1 segmento `no_voice` | % del tiempo sin voz + aclaración de que no es desafinación |
+| `OUT_OF_RHYTHM` | existe ≥1 segmento `out_of_rhythm` | peor intervalo entre onsets + recomendación de pulso estable |
 
 Sin segmentos → sin feedback (un intento afinado y continuo no genera mensajes).
+Cada código aparece **una sola vez** por análisis (1 ítem por tipo).
 
 ## Configuración (env)
 
@@ -76,5 +105,7 @@ Sin segmentos → sin feedback (un intento afinado y continuo no genera mensajes
 - HU-45 → `build_segments` + gravedad
 - HU-46 → `build_feedback` (`app/services/feedback.py`)
 - RF-38 → `compute_scores` (`app/services/scoring.py`)
-- Tests: `tests/test_align.py` (15), `tests/test_pitch.py` (3)
+- HU-S1-01 → `analyze_rhythm` (`app/services/rhythm_eval.py`) + `scores.ritmo`
+- Tests: `tests/test_align.py` (15), `tests/test_pitch.py` (3),
+  `tests/test_hu_s1_01.py` (13)
 - Versión del algoritmo con todo real: `0.4.0-align-scoring`

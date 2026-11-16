@@ -19,6 +19,8 @@ def _reset_app_state(monkeypatch):
     monkeypatch.setattr(app_state, "shutting_down", False)
     monkeypatch.setattr(app_state, "warmup_completed", False)
     monkeypatch.setattr(app_state, "warmup_duration_ms", None)
+    monkeypatch.setattr(app_state, "warmup_beat_track_completed", False)
+    monkeypatch.setattr(app_state, "warmup_beat_track_duration_ms", None)
 
 
 def _fake_pyin_440(y, **kwargs):
@@ -29,6 +31,7 @@ def _fake_pyin_440(y, **kwargs):
 
 def test_warmup_success(monkeypatch, caplog) -> None:
     monkeypatch.delenv("SKIP_WARMUP", raising=False)
+    monkeypatch.setenv("SKIP_WARMUP_BEAT", "true")
     monkeypatch.setattr("librosa.pyin", _fake_pyin_440)
 
     with caplog.at_level(logging.INFO, logger="singing"):
@@ -43,6 +46,7 @@ def test_warmup_success(monkeypatch, caplog) -> None:
 
 def test_warmup_failure_does_not_crash(monkeypatch, caplog) -> None:
     monkeypatch.delenv("SKIP_WARMUP", raising=False)
+    monkeypatch.setenv("SKIP_WARMUP_BEAT", "true")
 
     def boom(*_args, **_kwargs):
         raise RuntimeError("pyin boom")

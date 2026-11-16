@@ -6,7 +6,7 @@
 2. `cd singing-service`
 3. `docker compose up -d --build singing-service`
 4. `pip install -r requirements-dev.txt`
-5. `pytest -v` → **100 passed** (99 de servicio + 1 de integración).
+5. `pytest -v` → **113 passed** (112 de servicio + 1 de integración).
 
 ## Flujo de cambio
 

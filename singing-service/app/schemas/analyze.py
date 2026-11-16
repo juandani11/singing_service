@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, model_validator
 
 AnalysisStatus = Literal["queued", "completed", "failed"]
 AnalysisMode = Literal["absolute", "comparative"]
-SegmentType = Literal["out_of_tune", "no_voice"]
+SegmentType = Literal["out_of_tune", "no_voice", "out_of_rhythm"]
 Severity = Literal["info", "medium", "high"]
 
 
@@ -44,11 +44,20 @@ class Segment(BaseModel):
     start: float = Field(ge=0, description="Inicio en segundos")
     end: float = Field(gt=0, description="Fin en segundos")
     type: SegmentType = Field(
-        description="out_of_tune = desafinado; no_voice = ausencia de voz (HU-46 las diferencia)"
+        description=(
+            "out_of_tune = desafinado; no_voice = ausencia de voz; "
+            "out_of_rhythm = intervalo entre onsets anómalo"
+        )
     )
     expected_note: str | None = Field(default=None, description="Nota esperada (out_of_tune)")
     sung_note: str | None = Field(default=None, description="Nota cantada (out_of_tune)")
     delta_cents: int | None = Field(default=None, description="Desviación en cents (out_of_tune)")
+    interval_ms: int | None = Field(
+        default=None, ge=0, description="Intervalo entre onsets (out_of_rhythm)"
+    )
+    message: str | None = Field(
+        default=None, description="Mensaje del segmento (out_of_rhythm)"
+    )
     severity: Severity
 
     @model_validator(mode="after")
@@ -56,7 +65,9 @@ class Segment(BaseModel):
         if self.type == "out_of_tune":
             if self.delta_cents is None or self.expected_note is None or self.sung_note is None:
                 raise ValueError("out_of_tune requiere delta_cents, expected_note y sung_note")
-        else:  # no_voice
+            if self.interval_ms is not None:
+                raise ValueError("out_of_tune no debe llevar interval_ms")
+        elif self.type == "no_voice":
             faltan_nulos = (
                 self.delta_cents is not None
                 or self.expected_note is not None
@@ -64,6 +75,17 @@ class Segment(BaseModel):
             )
             if faltan_nulos:
                 raise ValueError("no_voice no debe llevar delta_cents ni notas")
+            if self.interval_ms is not None:
+                raise ValueError("no_voice no debe llevar interval_ms")
+        else:  # out_of_rhythm
+            if self.interval_ms is None or self.message is None:
+                raise ValueError("out_of_rhythm requiere interval_ms y message")
+            if (
+                self.delta_cents is not None
+                or self.expected_note is not None
+                or self.sung_note is not None
+            ):
+                raise ValueError("out_of_rhythm no debe llevar delta_cents ni notas")
         if self.end <= self.start:
             raise ValueError("end debe ser mayor que start")
         return self
@@ -76,15 +98,21 @@ class Scores(BaseModel):
     afinacion: int = Field(ge=0, le=100)
     estabilidad: int = Field(ge=0, le=100)
     control_volumen: int = Field(ge=0, le=100)
+    ritmo: int | None = Field(
+        default=None,
+        ge=0,
+        le=100,
+        description="Ritmo 0-100 (HU-S1-01); null si no hay onsets",
+    )
     silence_pct: int = Field(ge=0, le=100, description="% del tiempo sin voz")
 
 
 class Metrics(BaseModel):
-    """Métricas del contrato híbrido (Sprint 0 — cierre de gaps).
+    """Métricas del contrato híbrido (Sprint 0 + ritmo HU-S1-01).
 
     - `pitch_stability_cents`, `mean_pitch_hz`, `voiced_ratio`: en ambos modos.
     - `pitch_accuracy`, `average_cent_deviation`: sólo `mode=comparative` (null en absolute).
-    - `rhythm_accuracy`: null siempre; ritmo diferido a Sprint 1 (decisión O4-B).
+    - `rhythm_accuracy` y campos de ritmo: en ambos modos; null si no hay onsets.
     """
 
     pitch_stability_cents: float | None = Field(default=None, ge=0)
@@ -92,6 +120,10 @@ class Metrics(BaseModel):
     voiced_ratio: float | None = Field(default=None, ge=0, le=1)
     pitch_accuracy: float | None = Field(default=None, ge=0, le=100)
     rhythm_accuracy: float | None = Field(default=None, ge=0, le=100)
+    estimated_tempo_bpm: float | None = Field(default=None, gt=0)
+    onset_count: int = Field(default=0, ge=0)
+    onset_stability: float | None = Field(default=None, ge=0, le=100)
+    tempo_deviation_bpm: float | None = Field(default=None)
     average_cent_deviation: float | None = Field(default=None, ge=0)
 
 
@@ -105,6 +137,7 @@ class Timings(BaseModel):
 
     preprocess_ms: int = Field(ge=0)
     pitch_ms: int = Field(ge=0)
+    rhythm_ms: int = Field(default=0, ge=0, description="Análisis de tempo/onsets (HU-S1-01)")
     dtw_ms: int = Field(ge=0, description="Comparación temporal (simple en v1; FastDTW en S1)")
     scoring_ms: int = Field(ge=0)
 

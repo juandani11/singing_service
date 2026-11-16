@@ -60,6 +60,8 @@ class AppState:
     shutting_down: bool = False
     warmup_completed: bool = False
     warmup_duration_ms: float | None = None
+    warmup_beat_track_completed: bool = False
+    warmup_beat_track_duration_ms: float | None = None
 
 
 app_state = AppState()
@@ -102,6 +104,16 @@ def _self_test() -> bool:
 def _skip_warmup() -> bool:
     """`SKIP_WARMUP=true|1|yes|on` evita el warm-up (tests/entornos rápidos)."""
     return os.environ.get("SKIP_WARMUP", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _skip_warmup_beat() -> bool:
+    """`SKIP_WARMUP_BEAT=true|1|yes|on` omite solo el warm-up de ritmo."""
+    return os.environ.get("SKIP_WARMUP_BEAT", "false").strip().lower() in {
         "1",
         "true",
         "yes",
@@ -158,6 +170,48 @@ def _warmup() -> None:
         )
 
 
+def _warmup_beat_track() -> None:
+    """Fuerza el JIT de `beat_track`/`onset_detect` (HU-S1-01).
+
+    `beat_track` compila numba en el primer uso (~10 s); sin este warm-up el
+    primer `/analyze` pagaría ese coste aunque el pyin ya esté caliente.
+    """
+    started = time.perf_counter()
+    try:
+        import librosa
+        import numpy as np
+
+        sr = settings.sample_rate
+        t = np.arange(int(0.5 * sr)) / sr
+        y = (0.3 * np.sin(2 * np.pi * 440.0 * t)).astype(np.float32)
+        librosa.beat.beat_track(y=y, sr=sr, hop_length=settings.hop_length)
+        librosa.onset.onset_detect(
+            y=y,
+            sr=sr,
+            hop_length=settings.hop_length,
+            units="time",
+            wait=5,
+        )
+        duration_ms = round((time.perf_counter() - started) * 1000, 2)
+        app_state.warmup_beat_track_duration_ms = duration_ms
+        app_state.warmup_beat_track_completed = True
+        log_event(
+            logging.INFO,
+            "warmup_beat_track_completed",
+            duration_ms=duration_ms,
+        )
+    except Exception as exc:  # el servicio puede atender sin este warm-up
+        app_state.warmup_beat_track_completed = False
+        app_state.warmup_beat_track_duration_ms = round(
+            (time.perf_counter() - started) * 1000, 2
+        )
+        log_event(
+            logging.WARNING,
+            "warmup_beat_track_failed",
+            error=f"{type(exc).__name__}: {exc}",
+        )
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     """Startup: self-test + warm-up + ready; shutdown: flag `shutting_down` (H-04)."""
@@ -165,6 +219,8 @@ async def lifespan(_app: FastAPI):
     app_state.shutting_down = False
     app_state.warmup_completed = False
     app_state.warmup_duration_ms = None
+    app_state.warmup_beat_track_completed = False
+    app_state.warmup_beat_track_duration_ms = None
     if not await run_in_threadpool(_self_test):
         log_event(logging.ERROR, "startup_self_test_failed")
         sys.exit(1)
@@ -172,6 +228,10 @@ async def lifespan(_app: FastAPI):
         log_event(logging.INFO, "warmup_skipped")
     else:
         await run_in_threadpool(_warmup)
+        if _skip_warmup_beat():
+            log_event(logging.INFO, "warmup_beat_track_skipped")
+        else:
+            await run_in_threadpool(_warmup_beat_track)
     app_state.ready = True
     try:
         yield
@@ -262,6 +322,7 @@ async def _validation_exception_handler(
                             "models_loaded": {"ok": True},
                             "disk_space_mb": 952675,
                             "warmup": {"ok": True, "duration_ms": 2710.5},
+                            "rhythm_warmup": {"ok": True, "duration_ms": 10050.2},
                         },
                         "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e",
                         "timestamp": "2026-11-14T19:07:53.272048+00:00",
@@ -283,6 +344,7 @@ async def _validation_exception_handler(
                             "models_loaded": {"ok": True},
                             "disk_space_mb": 952675,
                             "warmup": {"ok": False, "duration_ms": None},
+                            "rhythm_warmup": {"ok": False, "duration_ms": None},
                         },
                         "request_id": "7c1f0b2e9a4d4f6b8c3e5a1d2f4b6c8e",
                         "timestamp": "2026-11-14T19:12:15.713759+00:00",
@@ -308,6 +370,10 @@ async def health() -> JSONResponse:
         "warmup": {
             "ok": app_state.warmup_completed,
             "duration_ms": app_state.warmup_duration_ms,
+        },
+        "rhythm_warmup": {
+            "ok": app_state.warmup_beat_track_completed,
+            "duration_ms": app_state.warmup_beat_track_duration_ms,
         },
     }
     healthy = bool(ffmpeg["ok"]) and bool(librosa["ok"])

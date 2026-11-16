@@ -10,6 +10,8 @@ import tempfile
 import wave
 from pathlib import Path
 
+import numpy as np
+
 from app.services.preprocess import PreprocessError, resolve_ffmpeg
 
 RATE = 16000
@@ -37,6 +39,49 @@ def tone_wav(
                 sample = int(10000 * math.sin(2 * math.pi * freq * i / rate))
             frames += struct.pack("<h", sample)
         w.writeframes(bytes(frames))
+    return buf.getvalue()
+
+
+def pulse_wav(
+    bpm: float = 120.0,
+    duration: float = 5.0,
+    freq: float = 440.0,
+    pulse_ms: int = 40,
+    gap: tuple[float, float] | None = None,
+    rate: int = RATE,
+) -> bytes:
+    """WAV mono con pulsos de `pulse_ms` al ritmo `bpm` (HU-S1-01)."""
+    period = 60.0 / bpm
+    pulse_sec = pulse_ms / 1000.0
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        frames = bytearray()
+        for i in range(int(duration * rate)):
+            t = i / rate
+            in_gap = gap is not None and gap[0] <= t < gap[1]
+            phase = t % period
+            if not in_gap and phase < pulse_sec:
+                sample = int(10000 * math.sin(2 * math.pi * freq * i / rate))
+            else:
+                sample = 0
+            frames += struct.pack("<h", sample)
+        w.writeframes(bytes(frames))
+    return buf.getvalue()
+
+
+def noise_wav(duration: float = 5.0, seed: int = 0, rate: int = RATE) -> bytes:
+    """WAV mono de ruido blanco (onsets irregulares para HU-S1-01)."""
+    rng = np.random.default_rng(seed)
+    samples = (rng.normal(0.0, 0.1, int(duration * rate)) * 32767).astype(np.int16)
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(samples.tobytes())
     return buf.getvalue()
 
 

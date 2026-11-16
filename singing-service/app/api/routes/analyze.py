@@ -14,6 +14,7 @@ import uuid
 from pathlib import Path
 from typing import cast
 
+import librosa
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 
@@ -25,6 +26,7 @@ from app.schemas.analyze import (
     AnalysisMode,
     AnalysisResult,
     PitchCurves,
+    Segment,
     Timings,
 )
 from app.services.align import build_segments
@@ -38,6 +40,7 @@ from app.services.preprocess import (
     preprocess_bytes,
     read_capped,
 )
+from app.services.rhythm_eval import analyze_rhythm
 from app.services.scoring import compute_absolute_scores, compute_scores
 
 router = APIRouter(prefix="/api/v1", tags=["Análisis"])
@@ -70,6 +73,7 @@ def _accepted(result: AnalysisResult) -> AcceptedResponse:
         timings={
             "preprocess_ms": result.timings.preprocess_ms,
             "pitch_ms": result.timings.pitch_ms,
+            "rhythm_ms": result.timings.rhythm_ms,
             "dtw_ms": result.timings.dtw_ms,
             "scoring_ms": result.timings.scoring_ms,
         },
@@ -117,7 +121,9 @@ def _fail(attempt_id: str, code: str, message: str, status_code: int) -> HTTPExc
 
 **Formatos:** wav, m4a, mp3, aac, ogg. **Límites:** 50 MB, 600 s.
 
-**Futuro (Sprint 1):** `include_contour` y `tempo_bpm`; v0.2.0 los ignora.
+**Ritmo (HU-S1-01):** `tempo_bpm` opcional (BPM esperado); si se envía,
+`metrics.tempo_deviation_bpm` mide la desviación y `rhythm_accuracy` la incorpora.
+`include_contour` sigue siendo futuro (Sprint 1).
 
 **Respuesta:** `202 Accepted` (no 200) con `{analysis_id, status, mode}`; el
 resultado completo se consulta en `GET /api/v1/analyze/{analysis_id}`.
@@ -237,6 +243,10 @@ async def analyze(
         "absolute",
         description="absolute (sin referencia) | comparative (requiere referencia)",
     ),
+    tempo_bpm: float | None = Form(
+        default=None,
+        description="Tempo esperado en BPM (opcional); habilita tempo_deviation_bpm",
+    ),
 ) -> AcceptedResponse:
     if mode not in _ALLOWED_MODES:
         raise _fail(
@@ -350,6 +360,21 @@ async def analyze(
                 ]
             dtw_ms = int((time.perf_counter() - compare_start) * 1000)
 
+            rhythm_start = time.perf_counter()
+            rhythm_y, _ = await run_in_threadpool(
+                librosa.load,
+                str(student.path),
+                sr=settings.sample_rate,
+                mono=True,
+            )
+            rhythm = await run_in_threadpool(
+                analyze_rhythm,
+                rhythm_y,
+                settings.sample_rate,
+                tempo_bpm_hint=tempo_bpm,
+            )
+            rhythm_ms = int((time.perf_counter() - rhythm_start) * 1000)
+
             scoring_start = time.perf_counter()
             segments = build_segments(
                 student_pitch.points,
@@ -358,6 +383,14 @@ async def analyze(
                 duration_sec=student.duration_sec,
                 cent_threshold=settings.cent_threshold,
             )
+            if rhythm.feedback_items:
+                segments = sorted(
+                    [
+                        *segments,
+                        *(Segment(**item) for item in rhythm.feedback_items),
+                    ],
+                    key=lambda segment: segment.start,
+                )
             if is_comparative:
                 metrics = comparative_metrics(
                     student_pitch.points,
@@ -392,6 +425,24 @@ async def analyze(
                     stability_cents=metrics.pitch_stability_cents,
                     duration_sec=student.duration_sec,
                 )
+            metrics = metrics.model_copy(
+                update={
+                    "rhythm_accuracy": rhythm.rhythm_accuracy,
+                    "estimated_tempo_bpm": rhythm.estimated_tempo_bpm,
+                    "onset_count": rhythm.onset_count,
+                    "onset_stability": rhythm.onset_stability,
+                    "tempo_deviation_bpm": rhythm.tempo_deviation_bpm,
+                }
+            )
+            scores = scores.model_copy(
+                update={
+                    "ritmo": (
+                        int(round(rhythm.rhythm_accuracy))
+                        if rhythm.rhythm_accuracy is not None
+                        else None
+                    )
+                }
+            )
             scoring_ms = int((time.perf_counter() - scoring_start) * 1000)
     except PreprocessError as exc:
         raise _http_error(exc) from exc
@@ -435,6 +486,7 @@ async def analyze(
             timings=Timings(
                 preprocess_ms=preprocess_ms,
                 pitch_ms=pitch_ms,
+                rhythm_ms=rhythm_ms,
                 dtw_ms=dtw_ms,
                 scoring_ms=scoring_ms,
             ),
@@ -449,8 +501,9 @@ async def analyze(
     description="""Devuelve el `AnalysisResult` completo de un análisis previo.
 
 Incluye `pitch` (curvas F0), `segments`, `scores`, `metrics`, `feedback` y
-`timings`. En `mode=absolute`, `pitch.reference`, `pitch_accuracy`,
-`average_cent_deviation` y `rhythm_accuracy` son `null`.
+`timings`. En `mode=absolute`, `pitch.reference`, `pitch_accuracy` y
+`average_cent_deviation` son `null`; `rhythm_accuracy` puede ser número si hay
+onsets (HU-S1-01).
 
 El resultado vive en memoria con TTL de 1 h; si expiró, relanzar el `POST` con el
 mismo `attempt_id`.
@@ -479,6 +532,7 @@ mismo `attempt_id`.
                             "afinacion": 100,
                             "estabilidad": 100,
                             "control_volumen": 97,
+                            "ritmo": 94,
                             "silence_pct": 0,
                         },
                         "metrics": {
@@ -486,13 +540,18 @@ mismo `attempt_id`.
                             "mean_pitch_hz": 439.8,
                             "voiced_ratio": 1.0,
                             "pitch_accuracy": None,
-                            "rhythm_accuracy": None,
+                            "rhythm_accuracy": 93.9,
+                            "estimated_tempo_bpm": 117.2,
+                            "onset_count": 10,
+                            "onset_stability": 93.9,
+                            "tempo_deviation_bpm": None,
                             "average_cent_deviation": None,
                         },
                         "feedback": [],
                         "timings": {
                             "preprocess_ms": 762,
                             "pitch_ms": 289,
+                            "rhythm_ms": 31,
                             "dtw_ms": 0,
                             "scoring_ms": 8,
                         },

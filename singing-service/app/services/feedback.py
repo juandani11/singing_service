@@ -47,6 +47,20 @@ def build_feedback(segments: list[Segment], *, duration_sec: float) -> list[Feed
             )
         )
 
+    rhythm = [s for s in segments if s.type == "out_of_rhythm"]
+    if rhythm:
+        worst = max(rhythm, key=lambda s: s.interval_ms or 0)
+        items.append(
+            FeedbackItem(
+                code="OUT_OF_RHYTHM",
+                message=worst.message
+                or (
+                    f"Intervalo de {worst.interval_ms} ms entre onsets; "
+                    "mantén un pulso estable."
+                ),
+            )
+        )
+
     return items
 
 

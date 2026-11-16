@@ -32,6 +32,7 @@ GET  http://singing-service:5000/api/v1/analyze/{analysis_id}
 | `reference_audio` | archivo | sólo `comparative` | `referencia.wav` | alternativa: `reference_notes` (JSON) |
 | `reference_notes` | form (JSON) | alternativa | `[{"t":0.0,"f0":440.0}]` | cada nota: `t` + `f0`/`note`/`midi` |
 | `include_contour` | form (bool) | no | `false` | **futuro**: v1 lo ignora (`pitch_contour` no implementado) |
+| `tempo_bpm` | form (float) | no | `120` | tempo esperado en BPM; si se envía, se calcula `metrics.tempo_deviation_bpm` (HU-S1-01) |
 
 | Header | Tipo | Requerido | Ejemplo | Notas |
 |---|---|---|---|---|
@@ -83,7 +84,7 @@ Respuesta `202`:
 | Parámetro | Valor | Justificación |
 |---|---|---|
 | connect | **5 s** | red interna Docker; si no conecta en 5 s, el servicio está caído |
-| read | **300 s** | un audio de 10 min puede tardar hasta ~4 min (FFmpeg + pyin + comparación); margen de seguridad. El warm-up mitiga el JIT (primer request <2 s); mantener 300 s por si el warm-up falla |
+| read | **300 s** | un audio de 10 min puede tardar hasta ~4 min (FFmpeg + pyin + comparación); margen de seguridad. El warm-up cubre pyin + `beat_track`/`onset_detect` (startup ~14 s); el sine primer/segundo `/analyze` queda <2 s; MASTmelody real ~4 s en Docker (documentado); mantener 300 s por si falla |
 
 ```python
 httpx.Timeout(connect=5.0, read=300.0)
@@ -105,21 +106,31 @@ httpx.Timeout(connect=5.0, read=300.0)
 | `pitch.student` | lista | lista | curva F0 del alumno |
 | `pitch.reference` | **`null`** | lista | sin referencia en absolute |
 | `scores.vocal/afinacion/estabilidad/control_volumen/silence_pct` | 0–100 | 0–100 | `afinacion` en absolute = consistencia interna |
+| `scores.ritmo` | 0–100 o **`null`** | 0–100 o **`null`** | `round(rhythm_accuracy)`; null sin onsets (HU-S1-01) |
 | `metrics.pitch_stability_cents` | número | número | desviación interna (cents) |
 | `metrics.mean_pitch_hz` | número | número | media de frames con voz |
 | `metrics.voiced_ratio` | 0–1 | 0–1 | proporción con voz |
 | `metrics.pitch_accuracy` | **`null`** | 0–100 | % de frames dentro de `CENT_THRESHOLD` |
 | `metrics.average_cent_deviation` | **`null`** | número | desviación media absoluta (cents) |
-| `metrics.rhythm_accuracy` | **`null`** | **`null`** | **ritmo diferido a Sprint 1 (ambos modos)** |
-| `segments` | sólo `no_voice` | `out_of_tune` + `no_voice` | sin referencia no hay desafinación |
-| `feedback[].code` | `NO_VOICE`, `UNSTABLE_PITCH`, `PITCH_OUT_OF_RANGE` | `OUT_OF_TUNE`, `NO_VOICE` | códigos estables para i18n |
-| `timings` | preprocess/pitch/dtw/scoring | idem | `dtw_ms` = comparación temporal simple |
+| `metrics.rhythm_accuracy` | 0–100 o **`null`** | 0–100 o **`null`** | ritmo real (HU-S1-01); null sin onsets |
+| `metrics.estimated_tempo_bpm` | número o **`null`** | número o **`null`** | tempo estimado por `beat_track` |
+| `metrics.onset_count` | entero ≥0 | entero ≥0 | onsets detectados (`wait=5`) |
+| `metrics.onset_stability` | 0–100 o **`null`** | 0–100 o **`null`** | `100·(1−CV)` de intervalos |
+| `metrics.tempo_deviation_bpm` | **`null`** sin `tempo_bpm` | número con `tempo_bpm` | `estimated − tempo_bpm` |
+| `segments` | `no_voice` (+ `out_of_rhythm`) | `out_of_tune` + `no_voice` (+ `out_of_rhythm`) | `out_of_rhythm` lleva `interval_ms`/`message` |
+| `feedback[].code` | `NO_VOICE`, `UNSTABLE_PITCH`, `PITCH_OUT_OF_RANGE`, `OUT_OF_RHYTHM` | `OUT_OF_TUNE`, `NO_VOICE`, `OUT_OF_RHYTHM` | códigos estables para i18n |
+| `timings` | preprocess/pitch/rhythm/dtw/scoring | idem | `rhythm_ms` = tempo/onsets (HU-S1-01) |
 
 > **Nota C — cardinalidad de `feedback`.** El array `feedback` contiene **1 ítem por tipo** (`OUT_OF_TUNE`, `NO_VOICE`), **no 1 por segmento**. En `OUT_OF_TUNE` se reporta la **peor desviación** (mayor `delta_cents`). Los detalles completos por segmento están en `segments[]`. Comportamiento documentado en `Docs/scoring.md` §Feedback. Un cambio a 1 feedback por segmento sería BREAKING y requiere coordinación con Core.
 
+> **Campos de ritmo aditivos (no-BREAKING).** `scores.ritmo`, `metrics.estimated_tempo_bpm`,
+> `metrics.onset_count`, `metrics.onset_stability` y `metrics.tempo_deviation_bpm` se añaden
+> en HU-S1-01; los clientes existentes que no los lean siguen funcionando. `rhythm_accuracy`
+> deja de ser siempre `null`: puede ser número (o seguir siendo `null` si no hay onsets).
+
 **Crítico para el Core:** tolerar `null` en `pitch.reference`, `pitch_accuracy`,
-`average_cent_deviation` y `rhythm_accuracy`. No usar `rhythm_accuracy` para
-puntuaciones todavía.
+`average_cent_deviation`, `rhythm_accuracy` y en los campos de ritmo. `scores.ritmo`
+es aditivo; úsalo solo si tu UI ya lo contempla.
 
 ## 4.1 Endpoints de sistema (`/ready`, `/version`)
 
@@ -142,8 +153,9 @@ curl http://singing-service:5000/ready
 curl http://singing-service:5000/version
 ```
 
-> `/health` incluye `checks.warmup` (`{"ok": bool, "duration_ms": float|null}`) desde
-> v0.3.0. Es **aditivo y no-BREAKING**: los clientes existentes lo ignoran.
+> `/health` incluye `checks.warmup` (`{"ok": bool, "duration_ms": float|null}`) y
+> `checks.rhythm_warmup` (mismo shape, HU-S1-01) desde v0.3.0. Es **aditivo y
+> no-BREAKING**: los clientes existentes lo ignoran.
 
 ## 5. Matriz de errores
 
