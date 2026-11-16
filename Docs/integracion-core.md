@@ -1,5 +1,7 @@
 # Integración `singing-service` ↔ Core (Django/Celery)
 
+> ⚠️ **HISTÓRICO v0.2.x.** Snapshot de 2026-11-14 (Sprint 0). Para el estado actual, ver `Docs/ALCANCE_SINGING_SERVICE.md`, `singing-service/docs/celery-contract.md` y `CHANGELOG.md`.
+
 Guía operativa para el compañero de Django (plan §3 punto 3, Sprint 5; actualizada en el
 cierre de gaps del Sprint 0).
 Contrato vivo: **`http://singing-service:5000/docs`** (snapshot congelado en

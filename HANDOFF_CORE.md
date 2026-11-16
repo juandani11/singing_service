@@ -1,5 +1,7 @@
 ﻿# HANDOFF_CORE — Integración `singing-service` ↔ Core API (Celery)
 
+> ⚠️ **HISTÓRICO v0.2.x.** Snapshot de 2026-11-14 (v0.2.2). Para el estado actual, ver `Docs/ALCANCE_SINGING_SERVICE.md`, `singing-service/docs/celery-contract.md` y `CHANGELOG.md`.
+
 > **Versión:** v0.2.2
 > **Tag git:** `v0.2.2`
 > **Commit SHA:** `dc9808705b22508f28e5321959e264655cac7aa3`

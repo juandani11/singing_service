@@ -1,5 +1,7 @@
 # ESTADO_ACTUAL.md — singing-service (SyncDance AI)
 
+> ⚠️ **HISTÓRICO v0.2.x.** Snapshot de 2026-11-12 (Sprint 0). Para el estado actual, ver `Docs/ALCANCE_SINGING_SERVICE.md`, `singing-service/docs/celery-contract.md` y `CHANGELOG.md`.
+
 > Informe técnico de estado. **Solo lectura:** ningún archivo del proyecto fue modificado
 > para generarlo. Todos los outputs de comandos son reales (2026-11-12, UTC).
 > Servicio: microservicio de análisis de voz (EP-08, RF-37…RF-40, HU-43…HU-47).

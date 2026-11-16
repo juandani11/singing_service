@@ -1,5 +1,7 @@
 # Mensaje para Core — singing-service v0.2.3 listo para integrar
 
+> ⚠️ **HISTÓRICO v0.2.x.** Snapshot de 2026-11-15 (v0.2.3). Para el estado actual, ver `Docs/ALCANCE_SINGING_SERVICE.md`, `singing-service/docs/celery-contract.md` y `CHANGELOG.md`.
+
 📢 **`singing-service v0.2.3` — LISTO PARA INTEGRAR**
 
 **Tag:** `v0.2.3` (commit `f744a8e`)

@@ -16,11 +16,11 @@ audio → FFmpeg (WAV 16 kHz mono, loudnorm) → librosa.pyin (F0 + sin voz)
       → segmentos → scores → feedback
 ```
 
-> **FastDTW cableado (HU-S1-04).** `analyze.py` usa `align_frames` en
-> `mode=comparative` y cae a `align_by_time` si FastDTW falla
-> (`metrics.alignment_method` = `"fastdtw"` | `"time"`). Con voz real amateur,
-> `pitch_accuracy` queda ~40–50 con umbral 50 cents (MASTmelody: 20.7 → 44.4;
-> `average_cent_deviation` 153.9 → 92.9). La calibración de umbrales es HU-S4-XX.
+> **Estado (v0.3.0-dev):** FastDTW cableado en `analyze.py` desde HU-S1-04.
+> `pitch_accuracy` con voz real amateur ~40-50 (umbral 50 cents); MASTmelody
+> 20.7 → 44.4 y `average_cent_deviation` 153.9 → 92.9. `align_by_time` es fallback
+> si FastDTW lanza excepción (`metrics.alignment_method`). Calibración de umbrales:
+> HU-S4-XX (Sprint 4, con datos reales).
 
 ## Desviación en cents (HU-44)
 

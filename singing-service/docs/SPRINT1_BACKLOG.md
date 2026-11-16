@@ -10,7 +10,7 @@ métricas comparativas más ricas, preparado para integrar con el Core en produc
 
 ## Historias
 
-### HU-S1-01 — Implementar `rhythm_eval` real
+### HU-S1-01 — Implementar `rhythm_eval` real — ✅ Ejecutada (88273a8)
 
 - **Descripción:** reemplazar el stub por análisis de tempo y onsets.
 - **Criterios de aceptación:**
@@ -22,14 +22,29 @@ métricas comparativas más ricas, preparado para integrar con el Core en produc
 - **Fuera de alcance:** alineamiento por beats vs referencia (Sprint 2).
 - **Esfuerzo:** M
 
-### HU-S1-02 — `pitch_contour` con downsample
+### HU-S1-02 — `/ready` + `/version` — ✅ Ejecutada (9ac255b)
+
+- **Descripción:** readiness (`/ready`) y metadatos de build (`/version`).
+- **Criterios:** `/ready` 200/503; `/version` con `version`, `git_sha`, `build_time`;
+  tests.
+- **Esfuerzo:** S
+
+### HU-S1-09 — `pitch_contour` + downsample (pendiente)
 
 - **Descripción:** exponer `pitch_contour` cuando `include_contour=true`.
 - **Criterios:** downsample a 10 Hz, máx. 6000 puntos, JSON < 1 MB. Test con audio de
   10 min.
 - **Esfuerzo:** S
 
-### HU-S1-03 — Evaluación CREPE vs `librosa.pyin`
+### HU-S1-03 — Warm-up de librosa/numba — ✅ Ejecutada (70ab517)
+
+- **Descripción:** warm-up de pyin en lifespan (sine 440 Hz) + `SKIP_WARMUP`;
+  `/health` con `warmup`.
+- **Criterios:** primer request <2 s; tests; warm-up extendido `beat_track`
+  (HU-S1-01).
+- **Esfuerzo:** S
+
+### HU-S1-10 — Evaluación CREPE vs `librosa.pyin` (pendiente)
 
 - **Descripción:** benchmark en 3 audios (voz masculina, femenina, infantil).
   Documentar precisión y latencia.
@@ -37,7 +52,7 @@ métricas comparativas más ricas, preparado para integrar con el Core en produc
   pyin o migrar a CREPE.
 - **Esfuerzo:** M
 
-### HU-S1-04 — Alineamiento temporal robusto en comparative — ✅ Ejecutada
+### HU-S1-04 — Alineamiento temporal robusto en comparative — ✅ Ejecutada (ed29ac1)
 
 - **Descripción:** `align_frames` (FastDTW) cableado en `mode=comparative`;
   fallback `align_by_time` si FastDTW falla; `metrics.alignment_method` y
@@ -55,12 +70,10 @@ métricas comparativas más ricas, preparado para integrar con el Core en produc
   contadores de análisis y latencias (Prometheus); test de timeout.
 - **Esfuerzo:** S
 
-### HU-S1-06 — Warm-up de librosa/numba
+### HU-S1-06 — Warm-up (duplicada de HU-S1-03) — ✅ Ejecutada
 
-- **Descripción:** mitigar el JIT frío del primer request (~25 s observados en el
-  primer análisis tras arrancar el contenedor).
-- **Criterios:** `/health` con `warmup: true`; script de warm-up en el Dockerfile
-  (procesar 1 s de silencio al arrancar); el primer request real baja de 10 s.
+- **Descripción:** warm-up de librosa/numba; ejecutada como HU-S1-03 (70ab517).
+- **Criterios:** `/health` con `warmup`; primer request <2 s.
 - **Esfuerzo:** S
 
 ### HU-S1-07 — Empaquetar versión 0.3.0
@@ -91,6 +104,12 @@ métricas comparativas más ricas, preparado para integrar con el Core en produc
   precisión de tempo mantenida (±2 BPM vs baseline).
 - **Esfuerzo:** M.
 - **Sprint objetivo:** 2.
+
+## Pendientes reales (Sprint 2)
+
+- HU-S1-05 (timeout/metrics), HU-S1-07 (tag 0.3.0), HU-S1-08 (httpx2),
+  HU-S1-09 (`pitch_contour`), HU-S1-10 (CREPE), HU-S2-XX (latencia ritmo),
+  HU-S4-01 (estabilidad).
 
 ## Deuda técnica (Sprint 4)
 

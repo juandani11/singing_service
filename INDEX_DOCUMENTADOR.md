@@ -1,4 +1,7 @@
 # Paquete de documentación — singing-service v0.2.3
+
+> ⚠️ **HISTÓRICO v0.2.x.** Snapshot de 2026-11-15 (v0.2.3). Para el estado actual, ver `Docs/ALCANCE_SINGING_SERVICE.md`, `singing-service/docs/celery-contract.md` y `CHANGELOG.md`.
+
 **Para:** Documentador del proyecto
 **De:** Equipo singing-service
 **Fecha:** 2026-11-15
