@@ -40,10 +40,13 @@ Prometheus y cerrar deuda de calidad antes del tag `v0.4.0`.
 - **Criterio:** 0 warnings en `pytest -v`.
 - **Esfuerzo:** S. **Prioridad:** P2.
 
-### HU-S1-09 — `pitch_contour` + downsample (pendiente)
+### HU-S1-09 — `pitch_contour` + downsample — ✅ Ejecutada (v0.4.0-dev)
 
 - **Descripción:** exponer `pitch_contour` cuando `include_contour=true`
-  (downsample a 10 Hz, máx. 6000 puntos, JSON < 1 MB).
+  (downsample a ~10 Hz, máx. 6000 puntos, JSON < 1 MB).
+- **Ejecución:** `app/services/contour.py` + campo aditivo en `AnalysisResult`;
+  `step=3` con hop 32 ms (96 ms ≈ 10.42 Hz); recorte equiespaciado a 6000 puntos;
+  `note`/`f0` null sin voz. Tests `tests/test_hu_s1_09.py` (7).
 - **Esfuerzo:** S.
 
 ### HU-S1-10 — Evaluación CREPE vs `librosa.pyin` (pendiente)
@@ -66,4 +69,4 @@ Prometheus y cerrar deuda de calidad antes del tag `v0.4.0`.
 
 ## Pendientes reales
 
-HU-S1-07, HU-S1-08, HU-S1-09, HU-S1-10, HU-S2-XX y HU-S4-01.
+HU-S1-07, HU-S1-08, HU-S1-10, HU-S2-XX y HU-S4-01.

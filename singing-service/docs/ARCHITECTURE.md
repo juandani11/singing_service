@@ -31,7 +31,8 @@ singing-service/
 │   │   ├── metrics.py           # métricas absolute/comparative
 │   │   ├── scoring.py           # scores 0–100
 │   │   ├── feedback.py          # códigos y mensajes (HU-46)
-│   │   ├── rhythm_eval.py       # stub (diferido a Sprint 1)
+│   │   ├── rhythm_eval.py       # tempo + onsets (HU-S1-01)
+│   │   ├── contour.py           # pitch_contour downsampleado ~10 Hz (HU-S1-09)
 │   │   └── align.py             # FastDTW cableado en comparative (HU-S1-04); fallback align_by_time
 │   └── mock/data.py             # fixture con valores de Figma (no expuesto por API)
 ├── tests/                       # 123 tests por defecto + 3 de integración
@@ -50,12 +51,12 @@ Ver [`celery-contract.md`](celery-contract.md) para el detalle completo.
 
 - **Request** (`multipart/form-data`): `audio` (archivo, obligatorio), `attempt_id`,
   `routine_id`, `mode=absolute|comparative`; en comparative, `reference_audio`
-  (archivo) o `reference_notes` (JSON).
+  (archivo) o `reference_notes` (JSON). Opcional: `tempo_bpm` e `include_contour`.
 - **Response**: `analysis_id`, `attempt_id`, `routine_id`, `status`, `mode`,
-  `algorithm_version`, `duration_sec`, `pitch`, `segments`, `scores`, `metrics`,
-  `feedback`, `timings`.
-- **Futuro**: `pitch_contour` (flag `include_contour`, Sprint 1) y `rhythm_accuracy`
-  real (Sprint 1).
+  `algorithm_version`, `duration_sec`, `pitch`, `pitch_contour`, `segments`,
+  `scores`, `metrics`, `feedback`, `timings`.
+- **Aditivos recientes**: `pitch_contour` (HU-S1-09; `include_contour=true`) y
+  campos de ritmo/alineación (HU-S1-01/HU-S1-04).
 
 ## 4. Flujo interno de `/analyze`
 

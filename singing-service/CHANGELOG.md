@@ -18,14 +18,19 @@ versionado [SemVer](https://semver.org/lang/es/).
   `align_duration_seconds` (`method`), `rhythm_duration_seconds`, `active_requests`
   y `analysis_timeouts_total` (`phase`).
 - `prometheus-client==0.21.0` en `requirements.txt`.
-- `tests/test_hu_s1_05.py` (8 tests); total **123 por defecto + 3 integración (126)**.
+- `pitch_contour` opcional (`include_contour=true`, HU-S1-09): downsample a ~10 Hz
+  (`step=3` con hop 32 ms → 96 ms, ~10.42 Hz), máximo 6000 puntos; `student` y
+  `reference` con `t`, `f0`, `note`, `voiced`. Aditivo; `null` por defecto.
+- `tests/test_hu_s1_05.py` (8 tests) y `tests/test_hu_s1_09.py` (7 tests);
+  total **130 por defecto + 3 integración (133)**.
 - `ANALYSIS_TIMEOUT` (504) documentado en OpenAPI (`responses` de `/analyze`).
 
 ### Documentación
 
-- `docs/celery-contract.md` §3 (timeouts internos) y §5 (504 `ANALYSIS_TIMEOUT`);
-  `docs/ARCHITECTURE.md` §1/§2/§6/§6.3/§7; `docs/USAGE.md` (`/metrics` y tabla de
-  errores); `docs/SPRINT2_BACKLOG.md` (HU-S1-05 ✅).
+- `docs/celery-contract.md` §3 (timeouts internos), §5 (504 `ANALYSIS_TIMEOUT`) y
+  §2/§4 (`include_contour`/`pitch_contour`); `docs/ARCHITECTURE.md`
+  §1/§2/§3/§6/§6.3/§7; `docs/USAGE.md` (`/metrics`, tabla de errores y ejemplo de
+  `include_contour`); `docs/SPRINT2_BACKLOG.md` (HU-S1-05 ✅, HU-S1-09 ✅).
 
 ## [0.3.0] — 2026-11-16
 

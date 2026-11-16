@@ -29,11 +29,13 @@ métricas comparativas más ricas, preparado para integrar con el Core en produc
   tests.
 - **Esfuerzo:** S
 
-### HU-S1-09 — `pitch_contour` + downsample (pendiente)
+### HU-S1-09 — `pitch_contour` + downsample — ✅ Ejecutada (sprint2)
 
 - **Descripción:** exponer `pitch_contour` cuando `include_contour=true`.
-- **Criterios:** downsample a 10 Hz, máx. 6000 puntos, JSON < 1 MB. Test con audio de
+- **Criterios:** downsample a ~10 Hz, máx. 6000 puntos, JSON < 1 MB. Test con audio de
   10 min.
+- **Ejecución:** `app/services/contour.py`, campo aditivo `pitch_contour` y
+  `tests/test_hu_s1_09.py` (7).
 - **Esfuerzo:** S
 
 ### HU-S1-03 — Warm-up de librosa/numba — ✅ Ejecutada (70ab517)

@@ -485,6 +485,17 @@
           "pitch": {
             "$ref": "#/components/schemas/PitchCurves"
           },
+          "pitch_contour": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PitchContour"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Curva F0 downsampleada a ~10 Hz (HU-S1-09); null si include_contour=false o ausente"
+          },
           "segments": {
             "items": {
               "$ref": "#/components/schemas/Segment"
@@ -590,6 +601,12 @@
             ],
             "title": "Tempo Bpm",
             "description": "Tempo esperado en BPM (opcional); habilita tempo_deviation_bpm"
+          },
+          "include_contour": {
+            "type": "boolean",
+            "title": "Include Contour",
+            "description": "Incluir pitch_contour downsampleado a ~10 Hz (HU-S1-09)",
+            "default": false
           }
         },
         "type": "object",
@@ -753,6 +770,91 @@
         "type": "object",
         "title": "Metrics",
         "description": "Métricas del contrato híbrido (Sprint 0 + ritmo HU-S1-01).\n\n- `pitch_stability_cents`, `mean_pitch_hz`, `voiced_ratio`: en ambos modos.\n- `pitch_accuracy`, `average_cent_deviation`: sólo `mode=comparative` (null en absolute).\n- `rhythm_accuracy` y campos de ritmo: en ambos modos; null si no hay onsets."
+      },
+      "PitchContour": {
+        "properties": {
+          "student": {
+            "items": {
+              "$ref": "#/components/schemas/PitchContourPoint"
+            },
+            "type": "array",
+            "title": "Student",
+            "description": "Curva del alumno"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/PitchContourPoint"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference",
+            "description": "Curva de la referencia; null en mode=absolute"
+          },
+          "downsample_hz": {
+            "type": "integer",
+            "title": "Downsample Hz",
+            "description": "Frecuencia de downsample objetivo (Hz); el hop efectivo puede variar",
+            "default": 10
+          }
+        },
+        "type": "object",
+        "required": [
+          "student"
+        ],
+        "title": "PitchContour",
+        "description": "Curva F0 para el frontend, downsampleada a ~10 Hz (HU-S1-09)."
+      },
+      "PitchContourPoint": {
+        "properties": {
+          "t": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "T",
+            "description": "Segundos desde el inicio del audio"
+          },
+          "f0": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "F0",
+            "description": "Frecuencia fundamental en Hz; null si no hay voz"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note",
+            "description": "Nota musical temperada (p. ej. A4); null si no hay voz"
+          },
+          "voiced": {
+            "type": "boolean",
+            "title": "Voiced",
+            "description": "True si hay voz detectada en este frame"
+          }
+        },
+        "type": "object",
+        "required": [
+          "t",
+          "voiced"
+        ],
+        "title": "PitchContourPoint",
+        "description": "Punto de la curva F0 downsampleada (HU-S1-09)."
       },
       "PitchCurves": {
         "properties": {

@@ -38,6 +38,35 @@ class PitchCurves(BaseModel):
     hop_ms: int = Field(gt=0, description="Distancia entre frames en milisegundos")
 
 
+class PitchContourPoint(BaseModel):
+    """Punto de la curva F0 downsampleada (HU-S1-09)."""
+
+    t: float = Field(ge=0, description="Segundos desde el inicio del audio")
+    f0: float | None = Field(
+        default=None,
+        description="Frecuencia fundamental en Hz; null si no hay voz",
+    )
+    note: str | None = Field(
+        default=None,
+        description="Nota musical temperada (p. ej. A4); null si no hay voz",
+    )
+    voiced: bool = Field(description="True si hay voz detectada en este frame")
+
+
+class PitchContour(BaseModel):
+    """Curva F0 para el frontend, downsampleada a ~10 Hz (HU-S1-09)."""
+
+    student: list[PitchContourPoint] = Field(description="Curva del alumno")
+    reference: list[PitchContourPoint] | None = Field(
+        default=None,
+        description="Curva de la referencia; null en mode=absolute",
+    )
+    downsample_hz: int = Field(
+        default=10,
+        description="Frecuencia de downsample objetivo (Hz); el hop efectivo puede variar",
+    )
+
+
 class Segment(BaseModel):
     """Segmento vocal con mayor desviación (HU-45/HU-46)."""
 
@@ -165,6 +194,13 @@ class AnalysisResult(BaseModel):
     algorithm_version: str = Field(description="Versión del algoritmo que produjo el resultado")
     duration_sec: float = Field(gt=0)
     pitch: PitchCurves
+    pitch_contour: PitchContour | None = Field(
+        default=None,
+        description=(
+            "Curva F0 downsampleada a ~10 Hz (HU-S1-09); null si "
+            "include_contour=false o ausente"
+        ),
+    )
     segments: list[Segment]
     scores: Scores
     metrics: Metrics

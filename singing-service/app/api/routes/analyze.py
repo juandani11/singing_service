@@ -42,6 +42,7 @@ from app.schemas.analyze import (
 )
 from app.services.align import align_frames, build_segments
 from app.services.compare import ComparedFrame, align_by_time, parse_reference_notes
+from app.services.contour import build_pitch_contour
 from app.services.feedback import build_absolute_feedback, build_feedback
 from app.services.metrics import absolute_metrics, comparative_metrics
 from app.services.pitch import extract_pitch
@@ -322,6 +323,10 @@ async def analyze(
         default=None,
         description="Tempo esperado en BPM (opcional); habilita tempo_deviation_bpm",
     ),
+    include_contour: bool = Form(
+        default=False,
+        description="Incluir pitch_contour downsampleado a ~10 Hz (HU-S1-09)",
+    ),
 ) -> AcceptedResponse:
     if mode not in _ALLOWED_MODES:
         raise _fail(
@@ -564,6 +569,14 @@ async def analyze(
                     }
                 )
                 scoring_ms = int((time.perf_counter() - scoring_start) * 1000)
+
+                pitch_contour = None
+                if include_contour:
+                    pitch_contour = build_pitch_contour(
+                        student_pitch.points,
+                        reference_points,
+                        hop_ms=hop_ms,
+                    )
         except PreprocessError as exc:
             raise _http_error(exc) from exc
         except HTTPException as exc:
@@ -599,6 +612,7 @@ async def analyze(
                     reference=reference_curve if is_comparative else None,
                     hop_ms=hop_ms,
                 ),
+                pitch_contour=pitch_contour,
                 segments=segments,
                 scores=scores,
                 metrics=metrics,

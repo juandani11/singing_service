@@ -146,7 +146,7 @@ curl -s http://localhost:5000/openapi.json | head -c 200                 # JSON 
 | `mode` | form (str) | **sí** | `absolute` \| `comparative` | default `absolute` |
 | `reference_audio` | archivo | sólo comparative | `referencia.wav` | alternativa: `reference_notes` (JSON) |
 | `reference_notes` | form (JSON) | alternativa | `[{"t":0.0,"f0":440.0}]` | cada nota: `t` + `f0`/`note`/`midi` |
-| `include_contour` | form (bool) | no | `false` | **futuro** (Sprint 1); v0.2.0 lo ignora |
+| `include_contour` | form (bool) | no | `false` | si `true`, añade `pitch_contour` downsampleado a ~10 Hz (HU-S1-09) |
 | `tempo_bpm` | form (float) | no | `120` | tempo esperado (BPM); habilita `tempo_deviation_bpm` (HU-S1-01) |
 
 - **Response 202 (Accepted):**
@@ -189,6 +189,35 @@ GET 200 {'pitch_stability_cents': 0.0, 'mean_pitch_hz': 439.8, 'voiced_ratio': 1
 - **Ejemplo desde Celery (Core):** ver §8.4 y el contrato completo en
   [`celery-contract.md`](celery-contract.md).
 
+#### Curva de pitch (`include_contour`, HU-S1-09)
+
+`include_contour=true` añade `pitch_contour` al resultado: `student` y `reference`
+(comparative) downsampleados a ~10 Hz, con `t`, `f0`, `note` y `voiced`. Límite:
+6000 puntos por curva.
+
+```bash
+curl -X POST http://localhost:5000/api/v1/analyze \
+  -F "audio=@intento.wav" \
+  -F "attempt_id=contour-1" \
+  -F "routine_id=routine-9" \
+  -F "mode=absolute" \
+  -F "include_contour=true"
+
+curl http://localhost:5000/api/v1/analyze/<analysis_id> | jq '.pitch_contour.student[0:3]'
+```
+
+```json
+[
+  {"t": 0.0, "f0": null, "note": null, "voiced": false},
+  {"t": 0.096, "f0": 439.8, "note": "A4", "voiced": true},
+  {"t": 0.192, "f0": 440.1, "note": "A4", "voiced": true}
+]
+```
+
+En Swagger (`/docs`): abre `POST /api/v1/analyze`, pulsa **Try it out**, añade
+`include_contour` con valor `true` y ejecuta. El resultado completo se consulta en
+`GET /api/v1/analyze/{analysis_id}`.
+
 ### GET /api/v1/analyze/{analysis_id}
 
 - **Descripción:** devuelve el `AnalysisResult` completo.
@@ -196,7 +225,8 @@ GET 200 {'pitch_stability_cents': 0.0, 'mean_pitch_hz': 439.8, 'voiced_ratio': 1
 - **Auth:** ninguna.
 - **Response 200:** `AnalysisResult` (ver §2.2). En `absolute`, `pitch.reference`,
   `pitch_accuracy` y `average_cent_deviation` son `null`; `rhythm_accuracy` puede
-  ser número si hay onsets (HU-S1-01).
+  ser número si hay onsets (HU-S1-01). `pitch_contour` es `null` salvo que el POST
+  se haya hecho con `include_contour=true` (HU-S1-09).
 - **Errores:** `404 ANALYSIS_NOT_FOUND` (id inexistente o TTL 1 h expirado).
 - **curl:**
 

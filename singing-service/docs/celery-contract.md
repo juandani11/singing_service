@@ -31,7 +31,7 @@ GET  http://singing-service:5000/api/v1/analyze/{analysis_id}
 | `mode` | form (str) | **sí** | `absolute` \| `comparative` | default del servicio: `absolute` |
 | `reference_audio` | archivo | sólo `comparative` | `referencia.wav` | alternativa: `reference_notes` (JSON) |
 | `reference_notes` | form (JSON) | alternativa | `[{"t":0.0,"f0":440.0}]` | cada nota: `t` + `f0`/`note`/`midi` |
-| `include_contour` | form (bool) | no | `false` | **futuro**: v1 lo ignora (`pitch_contour` no implementado) |
+| `include_contour` | form (bool) | no | `false` | si `true`, añade `pitch_contour` downsampleado a ~10 Hz (HU-S1-09); default `false` |
 | `tempo_bpm` | form (float) | no | `120` | tempo esperado en BPM; si se envía, se calcula `metrics.tempo_deviation_bpm` (HU-S1-01) |
 
 | Header | Tipo | Requerido | Ejemplo | Notas |
@@ -120,6 +120,7 @@ httpx.Timeout(connect=5.0, read=300.0)
 | `mode` | `"absolute"` | `"comparative"` | eco del modo usado |
 | `pitch.student` | lista | lista | curva F0 del alumno |
 | `pitch.reference` | **`null`** | lista | sin referencia en absolute |
+| `pitch_contour` | objeto o **`null`** | objeto o **`null`** | null si `include_contour=false`; `student` a ~10 Hz (máx. 6000 puntos); `reference` null en absolute (HU-S1-09) |
 | `scores.vocal/afinacion/estabilidad/control_volumen/silence_pct` | 0–100 | 0–100 | `afinacion` en absolute = consistencia interna |
 | `scores.ritmo` | 0–100 o **`null`** | 0–100 o **`null`** | `round(rhythm_accuracy)`; null sin onsets (HU-S1-01) |
 | `metrics.pitch_stability_cents` | número | número | desviación interna (cents) |
@@ -137,6 +138,14 @@ httpx.Timeout(connect=5.0, read=300.0)
 | `feedback[].code` | `NO_VOICE`, `UNSTABLE_PITCH`, `PITCH_OUT_OF_RANGE`, `OUT_OF_RHYTHM` | `OUT_OF_TUNE`, `NO_VOICE`, `OUT_OF_RHYTHM` | códigos estables para i18n |
 | `timings` | preprocess/pitch/rhythm/align/dtw/scoring | idem | `align_ms` = alineación (HU-S1-04); `dtw_ms` alias de `align_ms`; `rhythm_ms` = tempo/onsets |
 
+> **`pitch_contour` (HU-S1-09, no-BREAKING).** Campo aditivo, siempre presente
+> (valor `null` salvo `include_contour=true`). Estructura:
+> `{student: [{t, f0, note, voiced}], reference: [...]|null, downsample_hz: 10}`.
+> `student` se downsamplea a ~10 Hz (con `hop_ms=32` → 1 punto cada 96 ms ≈ 10.42 Hz)
+> y se limita a **6000 puntos**; si se recorta, los puntos son equiespaciados y la
+> frecuencia efectiva baja (p. ej. 30 min → ~3.33 Hz). `note` y `f0` son `null` en
+> frames sin voz. Para 10 min, el JSON de la curva queda por debajo de 1 MB.
+
 > **Alineación (HU-S1-04, no-BREAKING).** `mode=comparative` usa FastDTW
 > (`align_frames`) y cae a `align_by_time` si FastDTW falla. `metrics.alignment_method`
 > indica `"fastdtw"` o `"time"`. `timings.align_ms` es aditivo; `dtw_ms` se mantiene
@@ -149,9 +158,10 @@ httpx.Timeout(connect=5.0, read=300.0)
 > en HU-S1-01; los clientes existentes que no los lean siguen funcionando. `rhythm_accuracy`
 > deja de ser siempre `null`: puede ser número (o seguir siendo `null` si no hay onsets).
 
-**Crítico para el Core:** tolerar `null` en `pitch.reference`, `pitch_accuracy`,
-`average_cent_deviation`, `rhythm_accuracy` y en los campos de ritmo. `scores.ritmo`
-es aditivo; úsalo solo si tu UI ya lo contempla.
+**Crítico para el Core:** tolerar `null` en `pitch.reference`, `pitch_contour`,
+`pitch_accuracy`, `average_cent_deviation`, `rhythm_accuracy` y en los campos de
+ritmo. `scores.ritmo` y `pitch_contour` son aditivos; úsalos solo si tu UI ya los
+contempla.
 
 ## 4.1 Endpoints de sistema (`/ready`, `/version`)
 
