@@ -9,7 +9,7 @@
     "license": {
       "name": "Uso interno — SyncDance AI"
     },
-    "version": "0.3.0"
+    "version": "0.4.0"
   },
   "paths": {
     "/api/v1/analyze": {
@@ -18,7 +18,7 @@
           "Análisis"
         ],
         "summary": "Analizar audio de canto",
-        "description": "Analiza un audio de canto y devuelve métricas de pitch, segmentos y feedback.\n\n**Modos:**\n- `absolute` (default): análisis sin referencia; `pitch_accuracy` y\n  `average_cent_deviation` son `null`.\n- `comparative`: compara contra `reference_audio` (o `reference_notes`); requiere\n  referencia.\n\n**Formatos:** wav, m4a, mp3, aac, ogg. **Límites:** 50 MB, 600 s.\n\n**Ritmo (HU-S1-01):** `tempo_bpm` opcional (BPM esperado); si se envía,\n`metrics.tempo_deviation_bpm` mide la desviación y `rhythm_accuracy` la incorpora.\n`include_contour` sigue siendo futuro (Sprint 1).\n\n**Respuesta:** `202 Accepted` (no 200) con `{analysis_id, status, mode}`; el\nresultado completo se consulta en `GET /api/v1/analyze/{analysis_id}`.\n\n**Ejemplo curl:**\n```bash\ncurl -X POST http://localhost:5000/api/v1/analyze \\\n  -F \"audio=@test.wav\" \\\n  -F \"attempt_id=attempt-123\" \\\n  -F \"routine_id=routine-9\" \\\n  -F \"mode=absolute\"\n```",
+        "description": "Analiza un audio de canto y devuelve métricas de pitch, segmentos y feedback.\n\n**Modos:**\n- `absolute` (default): análisis sin referencia; `pitch_accuracy` y\n  `average_cent_deviation` son `null`.\n- `comparative`: compara contra `reference_audio` (o `reference_notes`); requiere\n  referencia.\n\n**Formatos:** wav, m4a, mp3, aac, ogg. **Límites:** 50 MB, 600 s.\n\n**Ritmo (HU-S1-01):** `tempo_bpm` opcional (BPM esperado); si se envía,\n`metrics.tempo_deviation_bpm` mide la desviación y `rhythm_accuracy` la incorpora.\n`include_contour=true` añade `pitch_contour` downsampleado a ~10 Hz (HU-S1-09).\n\n**Respuesta:** `202 Accepted` (no 200) con `{analysis_id, status, mode}`; el\nresultado completo se consulta en `GET /api/v1/analyze/{analysis_id}`.\n\n**Ejemplo curl:**\n```bash\ncurl -X POST http://localhost:5000/api/v1/analyze \\\n  -F \"audio=@test.wav\" \\\n  -F \"attempt_id=attempt-123\" \\\n  -F \"routine_id=routine-9\" \\\n  -F \"mode=absolute\"\n```",
         "operationId": "analyze_api_v1_analyze_post",
         "requestBody": {
           "content": {
@@ -248,7 +248,7 @@
                 "example": {
                   "status": "ok",
                   "service": "singing-service",
-                  "version": "0.3.0",
+                  "version": "0.4.0",
                   "checks": {
                     "ffmpeg": {
                       "ok": true,
@@ -284,7 +284,7 @@
                 "example": {
                   "status": "degraded",
                   "service": "singing-service",
-                  "version": "0.3.0",
+                  "version": "0.4.0",
                   "checks": {
                     "ffmpeg": {
                       "ok": false
@@ -368,7 +368,7 @@
                   "title": "Response Version Version Get"
                 },
                 "example": {
-                  "version": "0.3.0",
+                  "version": "0.4.0",
                   "git_sha": "abc1234",
                   "build_time": "2026-11-15T12:00:00Z",
                   "python": "3.14.6",

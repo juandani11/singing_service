@@ -2,7 +2,7 @@
 
 > Documento de trazabilidad para el docente/líder. El **docx v1.0** es la fuente
 > normativa de RF/HU/sprints; `Docs/Obsidian/` es análisis derivado (no normativo).
-> Estado: `sprint1` @ `ed29ac1`, tag `v0.2.3` (`f744a8e`), 115+3 tests, 98 %.
+> Estado: `sprint2` @ `8d10789`, tag `v0.4.0` (release), 138+3 tests, 98 %.
 
 ## 1. Qué es
 
@@ -16,10 +16,12 @@ Sin auth, sin DB, red interna Docker. El Core es la fuente de verdad.
 |---|---|---|
 | **“Sprint 0 local”** (v0.2.0 → v0.2.3) | **S0–S5 del plan del microservicio** (comprimido) | ✅ Ejecutado |
 | **`sprint1`** (v0.3.0-dev) | **Post-MVP / calidad** (no está en el docx ni en el plan original) | ✅ 4/4 HUs cerradas |
+| **`sprint2`** (v0.4.0) | **Hardening / production-ready** | ✅ 4/4 HUs cerradas |
 
 > El **“Sprint 0” del repo NO es el S1 del docx** (Core usuarios/rutinas). Es el
-> **S0–S5 del plan del microservicio** ejecutado en un solo ciclo. El `sprint1`
-> actual es un sprint nuevo de calidad/observabilidad.
+> **S0–S5 del plan del microservicio** ejecutado en un solo ciclo. `sprint1` fue
+> calidad/observabilidad (v0.3.0); `sprint2` es hardening/production-ready
+> (v0.4.0).
 
 ## 3. Requisitos Funcionales cubiertos (docx v1.0 como fuente normativa)
 
@@ -41,6 +43,10 @@ Sin auth, sin DB, red interna Docker. El Core es la fuente de verdad.
 | `/ready`, `/version` | Observabilidad para K8s | `CIERRE_HU_S1_02.md` |
 | Warm-up (JIT frío) | Mitiga latencia del primer request | `CIERRE_HU_S1_03.md` |
 | FastDTW cableado | Cierra RF-38 con calidad real | `CIERRE_HU_S1_04.md` |
+| Timeout interno + `/metrics` | Evita bloqueos y da observabilidad Prometheus | `CIERRE_HU_S1_05.md` |
+| `pitch_contour` | Curva para superponer alumno vs referencia en el frontend | `CIERRE_HU_S1_09.md` |
+| Cache de ritmo + warm-up de pulsos | Reduce latencia y elimina el JIT del primer request | `CIERRE_HU_S2_XX.md` |
+| `httpx2` | Elimina warnings de deprecación en tests | `CIERRE_HU_S1_08.md` |
 
 ## 5. HUs ejecutadas vs backlog original
 
@@ -51,10 +57,29 @@ Sin auth, sin DB, red interna Docker. El Core es la fuente de verdad.
 | HU-S1-03 (warm-up) | ✅ Ejecutada (70ab517) — el backlog original la llamaba CREPE |
 | HU-S1-04 (FastDTW) | ✅ Ejecutada (ed29ac1) |
 | HU-S1-06 (warm-up) | ✅ Ejecutada como HU-S1-03 (duplicada) |
+| HU-S1-05 (timeout + `/metrics`) | ✅ Ejecutada (5278a2b) |
+| HU-S1-09 (`pitch_contour`) | ✅ Ejecutada (9caa08f) |
+| HU-S2-XX (latencia de ritmo) | ✅ Ejecutada (4343068) |
+| HU-S1-08 (httpx2) | ✅ Ejecutada (8d10789) |
 
-**Pendientes reales (Sprint 2):** HU-S1-05 (`/metrics` + timeout), HU-S1-07 (tag
-`v0.3.0`), HU-S1-08 (httpx2), HU-S1-09 (`pitch_contour` + downsample), HU-S1-10
-(CREPE vs pyin), HU-S2-XX (latencia de ritmo), HU-S4-01 (recalibrar estabilidad).
+**Pendientes reales (post-v0.4.0):** HU-S1-10 (CREPE vs pyin) y HU-S4-01
+(recalibrar estabilidad). HU-S1-07 cerrada con el tag `v0.4.0`.
+
+## Sprint 2 (v0.4.0) — production-ready
+
+- **HU-S1-05 — Timeout + `/metrics`:** `PYIN_TIMEOUT_SECONDS` /
+  `ALIGN_TIMEOUT_SECONDS` → **504 `ANALYSIS_TIMEOUT`**; `/metrics` Prometheus
+  (counters, histogramas, gauge `active_requests`).
+- **HU-S1-09 — `pitch_contour`:** opt-in `include_contour=true`, downsample
+  ~10 Hz, máximo 6000 puntos, JSON <1 MB para 10 min.
+- **HU-S2-XX — Latencia de ritmo:** cache por hash (0 ms en hit) + warm-up con
+  pulsos 120 BPM (primer request 3994 ms → 262 ms). El “3.8 s” era **JIT frío**,
+  no coste por audio (estable: 8–19 ms para MASTmelody).
+- **HU-S1-08 — `httpx2`:** `TestClient` migrado a `httpx2==2.16.2`; cero
+  `StarletteDeprecationWarning`.
+
+**Estado:** MVP funcional completo + hardening. **Listo para integración con
+Core.**
 
 ## 6. API actual vs plan original (BREAKING documentados)
 

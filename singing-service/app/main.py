@@ -322,7 +322,7 @@ async def _validation_exception_handler(
                     "example": {
                         "status": "ok",
                         "service": "singing-service",
-                        "version": "0.3.0",
+                        "version": "0.4.0",
                         "checks": {
                             "ffmpeg": {"ok": True, "version": "7.1.5"},
                             "librosa": {"ok": True, "version": "1.0.0"},
@@ -344,7 +344,7 @@ async def _validation_exception_handler(
                     "example": {
                         "status": "degraded",
                         "service": "singing-service",
-                        "version": "0.3.0",
+                        "version": "0.4.0",
                         "checks": {
                             "ffmpeg": {"ok": False, "version": None},
                             "librosa": {"ok": True, "version": "1.0.0"},
@@ -474,7 +474,7 @@ async def ready() -> JSONResponse:
             "content": {
                 "application/json": {
                     "example": {
-                        "version": "0.3.0",
+                        "version": "0.4.0",
                         "git_sha": "abc1234",
                         "build_time": "2026-11-15T12:00:00Z",
                         "python": "3.14.6",

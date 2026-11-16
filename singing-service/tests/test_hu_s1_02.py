@@ -72,7 +72,7 @@ def test_version_from_env(monkeypatch) -> None:
 
     assert response.status_code == 200
     body = response.json()
-    assert body["version"] == "0.3.0"
+    assert body["version"] == "0.4.0"
     assert body["git_sha"] == "abc1234"
     assert body["build_time"] == "2026-11-15T12:00:00Z"
     for key in ("python", "ffmpeg", "fastapi", "librosa", "request_id"):

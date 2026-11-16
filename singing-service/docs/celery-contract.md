@@ -84,7 +84,7 @@ Respuesta `202`:
 | Parámetro | Valor | Justificación |
 |---|---|---|
 | connect | **5 s** | red interna Docker; si no conecta en 5 s, el servicio está caído |
-| read | **300 s** | un audio de 10 min puede tardar hasta ~4 min (FFmpeg + pyin + comparación); margen de seguridad. El warm-up cubre pyin + `beat_track`/`onset_detect` (startup ~14 s); el sine primer/segundo `/analyze` queda <2 s; MASTmelody real ~4 s en Docker (documentado); mantener 300 s por si falla |
+| read | **300 s** | un audio de 10 min tarda decenas de segundos (FFmpeg + pyin + scoring); `rhythm_eval` en régimen estable ~0.25–0.4 s para 5 min. El warm-up con pulsos 120 BPM elimina el JIT de onsets (startup ~19 s). Mantener 300 s de margen para audios largos |
 
 ```python
 httpx.Timeout(connect=5.0, read=300.0)
@@ -96,16 +96,17 @@ httpx.Timeout(connect=5.0, read=300.0)
 > Si el Core usa `read < 300 s`, va a cortar audios largos (el servicio seguirá
 > procesando y el resultado quedará huérfano hasta el TTL de 1 h).
 
-> **Nota latencia `rhythm_eval` (HU-S2-XX, medida).** En Docker (16 kHz, beat
-> hop 960, onset hop 512): MASTmelody 4.78 s → **~8–19 ms**; 60 s de pulsos
-> 120 BPM → **~45–69 ms** en régimen estable. El warm-up de ritmo ahora usa un
-> **tren de pulsos 120 BPM** (no un sine) para compilar la ruta de peak-picking:
-> el primer request tras arrancar baja de **~4.0 s a ~0.26 s**. El SLO <2 s se
-> cumple con margen. Se añadió un **cache en memoria por hash de audio** (TTL 1 h):
-> la segunda llamada con el mismo audio y `tempo_bpm` es **~0 ms**. No persiste
-> entre reinicios (Redis en Sprint 3+). Las variantes B/C (hop 1024, downsample
-> 11–12 kHz) se rechazaron por desviar el tempo >2 BPM. Core: mantener
-> `read=300 s`.
+> **Nota latencia `rhythm_eval` (v0.4.0, medida).** En Docker (16 kHz, beat
+> hop 960, onset hop 512), régimen estable: MASTmelody 4.78 s → **~8–19 ms**;
+> 60 s → **~45–80 ms**; 5 min → **~250–400 ms**. El “3.8 s” de versiones
+> anteriores era **JIT frío del primer request**, no el coste por audio. El
+> warm-up de ritmo usa un **tren de pulsos 120 BPM** (no un sine) para compilar
+> peak-picking: el primer request tras arrancar baja de **~4.0 s a ~0.26 s**. El
+> SLO <2 s se cumple con margen. Se añadió un **cache en memoria por hash de
+> audio** (TTL 1 h): la segunda llamada con el mismo audio y `tempo_bpm` es
+> **~0 ms**. No persiste entre reinicios (Redis en Sprint 3+). B (hop 1024) y C
+> (downsample 11–12 kHz) se rechazaron por desviar el tempo >2 BPM. Core:
+> mantener `read=300 s`.
 
 > **Timeouts internos (HU-S1-05).** Además del timeout del cliente, el servicio
 > protege su worker con timeouts configurables: `PYIN_TIMEOUT_SECONDS` (default

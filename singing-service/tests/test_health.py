@@ -16,7 +16,7 @@ def test_health_returns_200_with_checks() -> None:
 
     assert data["status"] == "ok"
     assert data["service"] == "singing-service"
-    assert data["version"] == "0.3.0"
+    assert data["version"] == "0.4.0"
 
     checks = data["checks"]
     assert checks["ffmpeg"]["ok"] is True
@@ -52,4 +52,4 @@ def test_openapi_schema_generated() -> None:
     schema = response.json()
     assert "/health" in schema["paths"]
     assert schema["info"]["title"].startswith("SyncDance AI")
-    assert schema["info"]["version"] == "0.3.0"
+    assert schema["info"]["version"] == "0.4.0"

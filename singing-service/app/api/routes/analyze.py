@@ -182,7 +182,7 @@ async def _run_with_timeout(
 
 **Ritmo (HU-S1-01):** `tempo_bpm` opcional (BPM esperado); si se envía,
 `metrics.tempo_deviation_bpm` mide la desviación y `rhythm_accuracy` la incorpora.
-`include_contour` sigue siendo futuro (Sprint 1).
+`include_contour=true` añade `pitch_contour` downsampleado a ~10 Hz (HU-S1-09).
 
 **Respuesta:** `202 Accepted` (no 200) con `{analysis_id, status, mode}`; el
 resultado completo se consulta en `GET /api/v1/analyze/{analysis_id}`.
